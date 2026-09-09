@@ -6,11 +6,11 @@ let currentCharacterId = null;
 let currentLanguage = localStorage.getItem('preferredLanguage') || 'en';
 
 const labels = {
-  en: { equipment:'Equipment', title:'Equipment & Inventory', search:'Search equipment…', category:'Category', all:'All', weapon:'Weapons', armor:'Armor', gear:'Adventuring Gear', tool:'Tools', ammunition:'Ammunition', add:'Add', inventory:'Inventory', empty:'Inventory is empty.', qty:'Qty', weight:'Weight', equipped:'Equipped', remove:'Remove', notes:'Notes', save:'Save', currency:'Currency', close:'Close', saved:'Saved.' },
-  fr: { equipment:'Équipement', title:'Équipement & inventaire', search:'Rechercher un équipement…', category:'Catégorie', all:'Tout', weapon:'Armes', armor:'Armures', gear:'Équipement d’aventure', tool:'Outils', ammunition:'Munitions', add:'Ajouter', inventory:'Inventaire', empty:'Inventaire vide.', qty:'Qté', weight:'Poids', equipped:'Équipé', remove:'Supprimer', notes:'Notes', save:'Enregistrer', currency:'Monnaie', close:'Fermer', saved:'Enregistré.' }
+  en: { equipment:'Equipment', title:'Equipment & Inventory', search:'Search equipment…', category:'Category', all:'All', weapon:'Weapons', armor:'Armor', gear:'Adventuring Gear', tool:'Tools', ammunition:'Ammunition', add:'Add', inventory:'Inventory', empty:'Inventory is empty.', qty:'Qty', weight:'Weight', equipped:'Equipped', remove:'Remove', notes:'Notes', save:'Save', currency:'Currency', close:'Close', saved:'Saved.', acUpdated:'Armor Class updated.' },
+  fr: { equipment:'Équipement', title:'Équipement & inventaire', search:'Rechercher un équipement…', category:'Catégorie', all:'Tout', weapon:'Armes', armor:'Armures', gear:'Équipement d’aventure', tool:'Outils', ammunition:'Munitions', add:'Ajouter', inventory:'Inventaire', empty:'Inventaire vide.', qty:'Qté', weight:'Poids', equipped:'Équipé', remove:'Supprimer', notes:'Notes', save:'Enregistrer', currency:'Monnaie', close:'Fermer', saved:'Enregistré.', acUpdated:'Classe d’armure mise à jour.' }
 };
 const t = k => labels[currentLanguage][k] || k;
-const escapeHtml = v => String(v ?? '').replace(/[&<>\'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const escapeHtml = v => String(v ?? '').replace(/[&<>\'\"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
 const categoryLabel = c => t(c);
 
 function ensureModal() {
@@ -71,8 +71,28 @@ async function loadInventory(){
   box.querySelectorAll('.inventory-save').forEach(b=>b.addEventListener('click',()=>saveInventoryRow(b.closest('.inventory-row'))));
   box.querySelectorAll('.inventory-remove').forEach(b=>b.addEventListener('click',()=>removeInventoryRow(b.closest('.inventory-row'))));
 }
-async function saveInventoryRow(row){ const id=row.dataset.inventoryId; const qty=Number(row.querySelector('.inventory-qty').value); if(qty<=0)return removeInventoryRow(row); const equipped=row.querySelector('.inventory-equip').checked; const notes=row.querySelector('.inventory-notes').value.trim(); const {error}=await supabase.from('character_inventory').update({quantity:qty,equipped,notes}).eq('id',id); if(error)showMessage(error.message,'error'); else showMessage(t('saved'),'success'); }
-async function removeInventoryRow(row){const {error}=await supabase.from('character_inventory').delete().eq('id',row.dataset.inventoryId);if(error)showMessage(error.message,'error');else await loadInventory();}
+async function saveInventoryRow(row){ const id=row.dataset.inventoryId; const qty=Number(row.querySelector('.inventory-qty').value); if(qty<=0)return removeInventoryRow(row); const equipped=row.querySelector('.inventory-equip').checked; const notes=row.querySelector('.inventory-notes').value.trim(); const {error}=await supabase.from('character_inventory').update({quantity:qty,equipped,notes}).eq('id',id); if(error)showMessage(error.message,'error'); else { await recalculateArmorClass(); await loadInventory(); showMessage(t('saved'),'success'); } }
+async function removeInventoryRow(row){const {error}=await supabase.from('character_inventory').delete().eq('id',row.dataset.inventoryId);if(error)showMessage(error.message,'error');else {await recalculateArmorClass();await loadInventory();}}
+
+async function recalculateArmorClass(){
+  if(!currentCharacterId)return;
+  const [{data:character,error:characterError},{data:scores,error:scoresError},{data:items,error:itemsError}] = await Promise.all([
+    supabase.from('characters').select('id,armor_class').eq('id',currentCharacterId).single(),
+    supabase.from('character_ability_scores').select('dexterity').eq('character_id',currentCharacterId).maybeSingle(),
+    supabase.from('character_inventory').select('item_name,equipped').eq('character_id',currentCharacterId).eq('equipped',true)
+  ]);
+  if(characterError||scoresError||itemsError)return;
+  const names=(items||[]).map(i=>i.item_name);
+  const {data:catalog}=await supabase.from('equipment_catalog').select('name,properties').in('name',names);
+  const armor=(catalog||[]).find(i=>i.properties?.is_shield===false && i.properties?.armor_type && i.properties.armor_type!=='shield');
+  const shield=(catalog||[]).find(i=>i.properties?.is_shield===true);
+  const dexMod=Math.floor(((Number(scores?.dexterity??10))-10)/2);
+  let ac=10+dexMod;
+  if(armor){ const p=armor.properties; const dexBonus=p.dex_cap===null ? dexMod : Math.min(dexMod,Number(p.dex_cap||0)); ac=Number(p.base_ac||10)+dexBonus; }
+  if(shield)ac+=Number(shield.properties?.ac_bonus||0);
+  const {error}=await supabase.from('characters').update({armor_class:ac}).eq('id',currentCharacterId);
+  if(!error)showMessage(`${t('acUpdated')} (${ac})`,'success');
+}
 async function loadCurrency(){
   const box=document.querySelector('#equipment-currency'); if(!box||!currentCharacterId)return; const {data,error}=await supabase.from('character_currency').select('*').eq('character_id',currentCharacterId).maybeSingle(); if(error){box.innerHTML=`<p class="status-message error">${escapeHtml(error.message)}</p>`;return;}
   const c=data||{cp:0,sp:0,ep:0,gp:0,pp:0}; box.innerHTML=['cp','sp','ep','gp','pp'].map(k=>`<label><span>${k.toUpperCase()}</span><input class="currency-input" data-currency="${k}" type="number" min="0" value="${c[k]||0}"></label>`).join('')+`<button class="button button-secondary currency-save" type="button">${t('save')}</button>`;
