@@ -6,7 +6,6 @@ let activeCharacterId = null;
 
 const ALL_SIMPLE_AND_MARTIAL = new Set(['barbarian','fighter','paladin','ranger']);
 const SIMPLE_ONLY = new Set(['bard','cleric','druid','sorcerer','warlock','wizard']);
-const ROGUE_FINESSE_OR_LIGHT = true;
 const RANGED_WEAPONS = new Set(['Blowgun','Dart','Hand Crossbow','Heavy Crossbow','Light Crossbow','Longbow','Shortbow','Sling']);
 const modifier = score => Math.floor((Number(score ?? 10) - 10) / 2);
 const proficiencyBonus = level => 2 + Math.floor((Math.max(1, Number(level ?? 1)) - 1) / 4);
@@ -16,9 +15,7 @@ function weaponProficient(classKey, item) {
   const properties = String(item.properties?.properties || '');
   if (ALL_SIMPLE_AND_MARTIAL.has(classKey)) return category === 'simple' || category === 'martial';
   if (SIMPLE_ONLY.has(classKey)) return category === 'simple';
-  if (classKey === 'rogue') {
-    return category === 'simple' || /\bFinesse\b/i.test(properties) || /\bLight\b/i.test(properties);
-  }
+  if (classKey === 'rogue') return category === 'simple' || /\bFinesse\b/i.test(properties) || /\bLight\b/i.test(properties);
   return false;
 }
 
@@ -59,6 +56,22 @@ async function addAttackForRow(row) {
   if (message) { message.textContent = localStorage.getItem('preferredLanguage') === 'fr' ? 'Attaque calculée et ajoutée à la fiche.' : 'Attack calculated and added to the character sheet.'; message.className = 'status-message success'; }
 }
 
+async function refreshLinkedWeaponAttacks() {
+  if (!activeCharacterId) return;
+  const [{ data: character, error: characterError }, { data: scores, error: scoresError }, { data: attacks, error: attacksError }] = await Promise.all([
+    attackSupabase.from('characters').select('id,class_key,level').eq('id', activeCharacterId).single(),
+    attackSupabase.from('character_ability_scores').select('*').eq('character_id', activeCharacterId).single(),
+    attackSupabase.from('character_attacks').select('id,name').eq('character_id', activeCharacterId)
+  ]);
+  if (characterError || scoresError || attacksError || !character || !scores) return;
+  for (const attack of attacks || []) {
+    const { data: item } = await attackSupabase.from('equipment_catalog').select('*').eq('name', attack.name).eq('category', 'weapon').maybeSingle();
+    if (!item) continue;
+    const calculated = calculateWeaponAttack(character, scores, item);
+    await attackSupabase.from('character_attacks').update(calculated).eq('id', attack.id);
+  }
+}
+
 function injectAttackButtons() {
   const modal = document.querySelector('#equipment-modal');
   const inventory = document.querySelector('#equipment-inventory');
@@ -81,8 +94,18 @@ function injectAttackButtons() {
 
 document.addEventListener('click', event => {
   const button = event.target.closest('.equipment-open-button');
-  if (button?.dataset.characterId) activeCharacterId = button.dataset.characterId;
+  if (button?.dataset.characterId) {
+    activeCharacterId = button.dataset.characterId;
+    setTimeout(refreshLinkedWeaponAttacks, 250);
+  }
 });
+
+document.addEventListener('change', event => {
+  if (event.target.matches('#sheet-level') || event.target.matches('#score-strength,#score-dexterity')) {
+    setTimeout(refreshLinkedWeaponAttacks, 250);
+  }
+});
+
 const observer = new MutationObserver(injectAttackButtons);
 observer.observe(document.body, { childList: true, subtree: true });
 setInterval(injectAttackButtons, 700);
