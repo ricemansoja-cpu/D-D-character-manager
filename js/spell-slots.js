@@ -1,0 +1,115 @@
+const SPELL_SLOTS_URL = 'https://wmeuebjbvoqudhpwtxyn.supabase.co';
+const SPELL_SLOTS_KEY = 'sb_publishable_jYrKnt_Unuv5M6XT1t0AaQ_quQTOpCD';
+const { createClient: createSpellSlotsClient } = window.supabase;
+const spellSlotsSupabase = createSpellSlotsClient(SPELL_SLOTS_URL, SPELL_SLOTS_KEY);
+
+const FULL_CASTER_SLOTS = [
+  [2,0,0,0,0,0,0,0,0],[3,0,0,0,0,0,0,0,0],[4,2,0,0,0,0,0,0,0],[4,3,0,0,0,0,0,0,0],
+  [4,3,2,0,0,0,0,0,0],[4,3,3,0,0,0,0,0,0],[4,3,3,1,0,0,0,0,0],[4,3,3,2,0,0,0,0,0],
+  [4,3,3,3,1,0,0,0,0],[4,3,3,3,2,0,0,0,0],[4,3,3,3,2,1,0,0,0],[4,3,3,3,2,1,0,0,0],
+  [4,3,3,3,2,1,1,0,0],[4,3,3,3,2,1,1,0,0],[4,3,3,3,2,1,1,1,0],[4,3,3,3,2,1,1,1,0],
+  [4,3,3,3,2,1,1,1,1],[4,3,3,3,3,1,1,1,1],[4,3,3,3,3,2,1,1,1],[4,3,3,3,3,2,2,1,1]
+];
+const HALF_CASTER_SLOTS = [
+  [2,0,0,0,0,0,0,0,0],[2,0,0,0,0,0,0,0,0],[3,0,0,0,0,0,0,0,0],[3,0,0,0,0,0,0,0,0],
+  [4,2,0,0,0,0,0,0,0],[4,2,0,0,0,0,0,0,0],[4,3,0,0,0,0,0,0,0],[4,3,0,0,0,0,0,0,0],
+  [4,3,2,0,0,0,0,0,0],[4,3,2,0,0,0,0,0,0],[4,3,3,0,0,0,0,0,0],[4,3,3,0,0,0,0,0,0],
+  [4,3,3,1,0,0,0,0,0],[4,3,3,1,0,0,0,0,0],[4,3,3,2,0,0,0,0,0],[4,3,3,2,0,0,0,0,0],
+  [4,3,3,3,1,0,0,0,0],[4,3,3,3,1,0,0,0,0],[4,3,3,3,2,0,0,0,0],[4,3,3,3,2,0,0,0,0]
+];
+const CASTERS = new Set(['bard','cleric','druid','sorcerer','wizard']);
+const HALF_CASTERS = new Set(['paladin','ranger']);
+const SLOT_FIELDS = Array.from({ length: 9 }, (_, i) => `level_${i + 1}`);
+
+function slotTable(classKey, level) {
+  const table = CASTERS.has(classKey) ? FULL_CASTER_SLOTS : HALF_CASTERS.has(classKey) ? HALF_CASTER_SLOTS : null;
+  return table ? table[Math.max(1, Math.min(20, Number(level) || 1)) - 1] : Array(9).fill(0);
+}
+
+function slotLabel(level, lang) {
+  return lang === 'fr' ? `Emplacement ${level}` : `Level ${level} slot`;
+}
+
+async function getSheetCharacter() {
+  const name = document.querySelector('#sheet-name')?.value?.trim();
+  if (!name) return null;
+  const { data: { user } } = await spellSlotsSupabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await spellSlotsSupabase.from('characters').select('id,class_key,level').eq('user_id', user.id).eq('name', name).maybeSingle();
+  return data || null;
+}
+
+async function loadSlotRow(characterId) {
+  const { data, error } = await spellSlotsSupabase.from('character_spell_slots').select('*').eq('character_id', characterId).maybeSingle();
+  if (error) throw error;
+  return data;
+}
+
+async function ensureSlotRow(characterId, classKey, level, forceReset = false) {
+  const row = await loadSlotRow(characterId);
+  const max = slotTable(classKey, level);
+  const hasValues = row && SLOT_FIELDS.some(field => Number(row[field] || 0) > 0);
+  const values = {};
+  SLOT_FIELDS.forEach((field, index) => {
+    const existing = Number(row?.[field] || 0);
+    values[field] = forceReset ? max[index] : (hasValues ? Math.min(existing, max[index]) : max[index]);
+  });
+  values.character_id = characterId;
+  const { data, error } = await spellSlotsSupabase.from('character_spell_slots').upsert(values, { onConflict: 'character_id' }).select().single();
+  if (error) throw error;
+  return data;
+}
+
+function renderSpellSlots(row, classKey, level) {
+  const container = document.querySelector('#spell-slots-grid');
+  if (!container) return;
+  const lang = localStorage.getItem('preferredLanguage') || 'en';
+  const max = slotTable(classKey, level);
+  const active = max.some(Boolean);
+  container.innerHTML = '';
+  if (!active) {
+    container.innerHTML = `<p class="progression-note">${lang === 'fr' ? 'Cette classe ne dispose pas d’emplacements de sorts de niveau 1+ à ce niveau.' : 'This class has no level 1+ spell slots at this level.'}</p>`;
+    return;
+  }
+  max.forEach((available, index) => {
+    if (!available) return;
+    const levelNumber = index + 1;
+    const current = Math.min(Number(row?.[SLOT_FIELDS[index]] || 0), available);
+    const card = document.createElement('div');
+    card.className = 'spell-slot-card';
+    card.innerHTML = `<label for="spell-slot-${levelNumber}">${slotLabel(levelNumber, lang)}</label><div class="spell-slot-controls"><button type="button" class="icon-button spell-slot-minus" aria-label="Decrease">−</button><input id="spell-slot-${levelNumber}" class="spell-slot-value" type="number" min="0" max="${available}" value="${current}" data-slot-level="${levelNumber}"><button type="button" class="icon-button spell-slot-plus" aria-label="Increase">+</button></div><small>${lang === 'fr' ? `maximum ${available}` : `maximum ${available}`}</small>`;
+    container.appendChild(card);
+    const input = card.querySelector('.spell-slot-value');
+    const persist = async () => {
+      const value = Math.max(0, Math.min(available, Number(input.value) || 0));
+      input.value = value;
+      const character = await getSheetCharacter();
+      if (!character) return;
+      await spellSlotsSupabase.from('character_spell_slots').upsert({ character_id: character.id, [SLOT_FIELDS[index]]: value }, { onConflict: 'character_id' });
+    };
+    card.querySelector('.spell-slot-minus').addEventListener('click', () => { input.value = Math.max(0, Number(input.value) - 1); persist(); });
+    card.querySelector('.spell-slot-plus').addEventListener('click', () => { input.value = Math.min(available, Number(input.value) + 1); persist(); });
+    input.addEventListener('change', persist);
+  });
+}
+
+async function refreshSpellSlots(forceReset = false) {
+  const character = await getSheetCharacter();
+  if (!character) return;
+  try {
+    const row = await ensureSlotRow(character.id, character.class_key, Number(document.querySelector('#sheet-level')?.value || character.level || 1), forceReset);
+    renderSpellSlots(row, character.class_key, Number(document.querySelector('#sheet-level')?.value || character.level || 1));
+  } catch (error) {
+    const container = document.querySelector('#spell-slots-grid');
+    if (container) container.innerHTML = `<p class="status-message error">${String(error.message || error)}</p>`;
+  }
+}
+
+document.addEventListener('change', event => {
+  if (event.target.matches('#sheet-level')) refreshSpellSlots(true);
+});
+const observer = new MutationObserver(() => {
+  const modal = document.querySelector('#sheet-modal');
+  if (modal && !modal.classList.contains('hidden') && document.querySelector('#sheet-name')?.value) setTimeout(() => refreshSpellSlots(false), 100);
+});
+observer.observe(document.body, { childList: true, subtree: true });
