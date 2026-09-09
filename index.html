@@ -10,10 +10,7 @@
 <body>
   <div id="app" class="app-shell">
     <header class="topbar">
-      <a class="brand" href="#" aria-label="D&D Character Manager">
-        <span class="brand-mark">⚔️</span>
-        <span>D&D Character Manager</span>
-      </a>
+      <a class="brand" href="#" aria-label="D&D Character Manager"><span class="brand-mark">⚔️</span><span>D&D Character Manager</span></a>
       <div class="topbar-actions">
         <button id="language-toggle" class="icon-button" type="button" aria-label="Switch language">FR</button>
         <button id="sign-out-button" class="button button-secondary hidden" type="button" data-i18n="auth.signOut">Sign out</button>
@@ -27,20 +24,16 @@
           <p class="eyebrow" data-i18n="app.eyebrow">D&D 2024</p>
           <h1 data-i18n="app.title">Character Manager</h1>
           <p class="muted" data-i18n="app.subtitle">Create, manage and save your characters securely.</p>
-
           <form id="auth-form" class="auth-form">
             <label for="email" data-i18n="auth.email">Email</label>
             <input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
-
             <label for="password" data-i18n="auth.password">Password</label>
             <input id="password" name="password" type="password" autocomplete="current-password" minlength="6" required placeholder="••••••••" />
-
             <div class="auth-actions">
               <button id="sign-in-button" class="button button-primary" type="submit" data-i18n="auth.signIn">Sign in</button>
               <button id="sign-up-button" class="button button-secondary" type="button" data-i18n="auth.signUp">Create account</button>
             </div>
           </form>
-
           <button id="magic-link-button" class="text-button" type="button" data-i18n="auth.magicLink">Send me a magic link</button>
           <p id="auth-message" class="status-message" role="status" aria-live="polite"></p>
         </div>
@@ -48,30 +41,34 @@
 
       <section id="dashboard-view" class="dashboard-view hidden">
         <div class="page-heading">
-          <div>
-            <p class="eyebrow" data-i18n="dashboard.eyebrow">Your campaign</p>
-            <h1 data-i18n="dashboard.title">Characters</h1>
-            <p id="user-email" class="muted"></p>
-          </div>
+          <div><p class="eyebrow" data-i18n="dashboard.eyebrow">Your campaign</p><h1 data-i18n="dashboard.title">Characters</h1><p id="user-email" class="muted"></p></div>
           <button id="new-character-button" class="button button-primary" type="button" data-i18n="dashboard.newCharacter">+ New character</button>
         </div>
-
         <div id="characters-list" class="characters-grid"></div>
-        <div id="empty-state" class="empty-state hidden">
-          <div class="empty-icon">📜</div>
-          <h2 data-i18n="dashboard.emptyTitle">No characters yet</h2>
-          <p class="muted" data-i18n="dashboard.emptyText">Your first D&D 2024 character will appear here.</p>
-        </div>
+        <div id="empty-state" class="empty-state hidden"><div class="empty-icon">📜</div><h2 data-i18n="dashboard.emptyTitle">No characters yet</h2><p class="muted" data-i18n="dashboard.emptyText">Your first D&D 2024 character will appear here.</p></div>
       </section>
     </main>
 
-    <footer class="footer">
-      <span>D&D Character Manager</span>
-      <span>·</span>
-      <span data-i18n="app.footer">D&D 2024 companion</span>
-    </footer>
-  </div>
+    <div id="character-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-modal></div>
+      <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="character-modal-title">
+        <div class="modal-header"><div><p class="eyebrow" data-i18n="character.createEyebrow">D&D 2024</p><h2 id="character-modal-title" data-i18n="character.createTitle">Create a character</h2></div><button class="icon-button" type="button" data-close-modal aria-label="Close">×</button></div>
+        <form id="character-form" class="character-form">
+          <label for="character-name" data-i18n="character.name">Character name</label>
+          <input id="character-name" name="name" maxlength="80" required />
+          <div class="form-grid three-columns">
+            <div><label for="character-class" data-i18n="character.class">Class</label><select id="character-class" name="classKey" required></select></div>
+            <div><label for="character-species" data-i18n="character.species">Species</label><select id="character-species" name="speciesKey" required></select></div>
+            <div><label for="character-background" data-i18n="character.background">Background</label><select id="character-background" name="backgroundKey" required></select></div>
+          </div>
+          <p id="character-message" class="status-message" role="status" aria-live="polite"></p>
+          <div class="modal-actions"><button class="button button-secondary" type="button" data-close-modal data-i18n="common.cancel">Cancel</button><button id="create-character-submit" class="button button-primary" type="submit" data-i18n="character.create">Create character</button></div>
+        </form>
+      </section>
+    </div>
 
+    <footer class="footer"><span>D&D Character Manager</span><span>·</span><span data-i18n="app.footer">D&D 2024 companion</span></footer>
+  </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script type="module" src="js/app.js"></script>
 </body>
