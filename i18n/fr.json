@@ -1,0 +1,17 @@
+{
+  "app.eyebrow": "D&D 2024",
+  "app.title": "Gestionnaire de personnages",
+  "app.subtitle": "Créez, gérez et sauvegardez vos personnages en toute sécurité.",
+  "app.footer": "Compagnon D&D 2024",
+  "auth.email": "E-mail",
+  "auth.password": "Mot de passe",
+  "auth.signIn": "Se connecter",
+  "auth.signUp": "Créer un compte",
+  "auth.signOut": "Se déconnecter",
+  "auth.magicLink": "Recevoir un lien de connexion",
+  "dashboard.eyebrow": "Votre campagne",
+  "dashboard.title": "Personnages",
+  "dashboard.newCharacter": "+ Nouveau personnage",
+  "dashboard.emptyTitle": "Aucun personnage",
+  "dashboard.emptyText": "Votre premier personnage D&D 2024 apparaîtra ici."
+}
