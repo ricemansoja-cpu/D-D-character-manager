@@ -25,14 +25,9 @@
           <h1 data-i18n="app.title">Character Manager</h1>
           <p class="muted" data-i18n="app.subtitle">Create, manage and save your characters securely.</p>
           <form id="auth-form" class="auth-form">
-            <label for="email" data-i18n="auth.email">Email</label>
-            <input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
-            <label for="password" data-i18n="auth.password">Password</label>
-            <input id="password" name="password" type="password" autocomplete="current-password" minlength="6" required placeholder="••••••••" />
-            <div class="auth-actions">
-              <button id="sign-in-button" class="button button-primary" type="submit" data-i18n="auth.signIn">Sign in</button>
-              <button id="sign-up-button" class="button button-secondary" type="button" data-i18n="auth.signUp">Create account</button>
-            </div>
+            <label for="email" data-i18n="auth.email">Email</label><input id="email" name="email" type="email" autocomplete="email" required placeholder="you@example.com" />
+            <label for="password" data-i18n="auth.password">Password</label><input id="password" name="password" type="password" autocomplete="current-password" minlength="6" required placeholder="••••••••" />
+            <div class="auth-actions"><button id="sign-in-button" class="button button-primary" type="submit" data-i18n="auth.signIn">Sign in</button><button id="sign-up-button" class="button button-secondary" type="button" data-i18n="auth.signUp">Create account</button></div>
           </form>
           <button id="magic-link-button" class="text-button" type="button" data-i18n="auth.magicLink">Send me a magic link</button>
           <p id="auth-message" class="status-message" role="status" aria-live="polite"></p>
@@ -54,8 +49,7 @@
       <section class="modal-card" role="dialog" aria-modal="true" aria-labelledby="character-modal-title">
         <div class="modal-header"><div><p class="eyebrow" data-i18n="character.createEyebrow">D&D 2024</p><h2 id="character-modal-title" data-i18n="character.createTitle">Create a character</h2></div><button class="icon-button" type="button" data-close-modal aria-label="Close">×</button></div>
         <form id="character-form" class="character-form">
-          <label for="character-name" data-i18n="character.name">Character name</label>
-          <input id="character-name" name="name" maxlength="80" required />
+          <label for="character-name" data-i18n="character.name">Character name</label><input id="character-name" name="name" maxlength="80" required />
           <div class="form-grid three-columns">
             <div><label for="character-class" data-i18n="character.class">Class</label><select id="character-class" name="classKey" required></select></div>
             <div><label for="character-species" data-i18n="character.species">Species</label><select id="character-species" name="speciesKey" required></select></div>
@@ -63,6 +57,34 @@
           </div>
           <p id="character-message" class="status-message" role="status" aria-live="polite"></p>
           <div class="modal-actions"><button class="button button-secondary" type="button" data-close-modal data-i18n="common.cancel">Cancel</button><button id="create-character-submit" class="button button-primary" type="submit" data-i18n="character.create">Create character</button></div>
+        </form>
+      </section>
+    </div>
+
+    <div id="sheet-modal" class="modal hidden" aria-hidden="true">
+      <div class="modal-backdrop" data-close-sheet></div>
+      <section class="modal-card sheet-card" role="dialog" aria-modal="true" aria-labelledby="sheet-modal-title">
+        <div class="modal-header"><div><p class="eyebrow" data-i18n="sheet.eyebrow">D&D 2024</p><h2 id="sheet-modal-title" data-i18n="sheet.title">Character sheet</h2></div><button class="icon-button" type="button" data-close-sheet aria-label="Close">×</button></div>
+        <form id="sheet-form" class="sheet-form">
+          <div class="form-grid two-columns">
+            <div><label for="sheet-name" data-i18n="character.name">Character name</label><input id="sheet-name" name="name" required maxlength="80" /></div>
+            <div><label for="sheet-level" data-i18n="sheet.level">Level</label><input id="sheet-level" name="level" type="number" min="1" max="20" required /></div>
+            <div><label for="sheet-xp" data-i18n="sheet.experience">Experience</label><input id="sheet-xp" name="experience" type="number" min="0" required /></div>
+            <div><label for="sheet-hit-dice" data-i18n="sheet.hitDice">Hit dice</label><input id="sheet-hit-dice" name="hitDice" required /></div>
+          </div>
+          <div class="section-heading"><h3 data-i18n="sheet.combat">Combat</h3></div>
+          <div class="form-grid four-columns">
+            <div><label for="sheet-hp-current" data-i18n="sheet.hpCurrent">Current HP</label><input id="sheet-hp-current" name="hpCurrent" type="number" min="0" required /></div>
+            <div><label for="sheet-hp-max" data-i18n="sheet.hpMax">Max HP</label><input id="sheet-hp-max" name="hpMax" type="number" min="0" required /></div>
+            <div><label for="sheet-hp-temp" data-i18n="sheet.hpTemporary">Temp HP</label><input id="sheet-hp-temp" name="hpTemporary" type="number" min="0" required /></div>
+            <div><label for="sheet-ac" data-i18n="character.ac">AC</label><input id="sheet-ac" name="armorClass" type="number" min="0" required /></div>
+            <div><label for="sheet-speed" data-i18n="character.speed">Speed</label><input id="sheet-speed" name="speed" type="number" min="0" required /></div>
+          </div>
+          <div class="section-heading"><h3 data-i18n="sheet.abilities">Ability scores</h3></div>
+          <div id="ability-scores-grid" class="ability-grid"></div>
+          <label class="checkbox-row"><input id="sheet-inspiration" name="inspirationHeroic" type="checkbox" /><span data-i18n="sheet.inspiration">Heroic Inspiration</span></label>
+          <p id="sheet-message" class="status-message" role="status" aria-live="polite"></p>
+          <div class="modal-actions"><button class="button button-secondary" type="button" data-close-sheet data-i18n="common.cancel">Close</button><button id="save-sheet-submit" class="button button-primary" type="submit" data-i18n="sheet.save">Save changes</button></div>
         </form>
       </section>
     </div>
