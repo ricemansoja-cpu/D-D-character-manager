@@ -17,29 +17,20 @@
   const mod = score => Math.floor((Number(score || 10) - 10) / 2);
   const label = key => ({ rage: 'Rage', bardic_inspiration: 'Bardic Inspiration', channel_divinity: 'Channel Divinity', wild_shape: 'Wild Shape', second_wind: 'Second Wind', action_surge: 'Action Surge', focus_points: 'Focus Points', lay_on_hands: 'Lay On Hands', innate_sorcery: 'Innate Sorcery', sorcery_points: 'Sorcery Points' })[key] || key;
   const recovery = value => value === 'short_rest' ? 'Short Rest' : 'Long Rest';
-
   async function character() {
-    const name = document.querySelector('#sheet-name')?.value?.trim();
-    if (!name) return null;
-    const { data: { user } } = await client.auth.getUser();
-    if (!user) return null;
-    const { data, error } = await client.from('characters').select('id,class_key,level').eq('user_id', user.id).eq('name', name).maybeSingle();
-    if (error) throw error;
-    return data;
+    const name = document.querySelector('#sheet-name')?.value?.trim(); if (!name) return null;
+    const { data: { user } } = await client.auth.getUser(); if (!user) return null;
+    const { data, error } = await client.from('characters').select('id,class_key,level').eq('user_id', user.id).eq('name', name).maybeSingle(); if (error) throw error; return data;
   }
   async function render(characterId) {
-    const panel = document.querySelector('#resources-panel');
-    const list = document.querySelector('#resources-list');
-    if (!panel || !list) return;
-    const { data, error } = await client.from('character_resources').select('*').eq('character_id', characterId).order('resource_key');
-    if (error) throw error;
+    const panel = document.querySelector('#resources-panel'); const list = document.querySelector('#resources-list'); if (!panel || !list) return;
+    const { data, error } = await client.from('character_resources').select('*').eq('character_id', characterId).order('resource_key'); if (error) throw error;
     panel.classList.toggle('hidden', !data?.length);
     list.innerHTML = (data || []).map(r => `<div class="resource-card"><div><strong>${label(r.resource_key)}</strong><small>${recovery(r.recovery)}</small></div><div class="resource-controls"><button type="button" class="button button-secondary resource-minus" data-id="${r.id}" ${r.current_uses <= 0 ? 'disabled' : ''}>−</button><span>${r.current_uses} / ${r.max_uses}</span><button type="button" class="button button-secondary resource-plus" data-id="${r.id}" ${r.current_uses >= r.max_uses ? 'disabled' : ''}>+</button></div></div>`).join('');
   }
   async function sync(characterData) {
     if (!characterData) return;
-    const cha = mod(document.querySelector('#score-charisma')?.value || 10);
-    const wanted = defs(characterData.class_key, characterData.level, cha);
+    const cha = mod(document.querySelector('#score-charisma')?.value || 10); const wanted = defs(characterData.class_key, characterData.level, cha);
     const { data: existing } = await client.from('character_resources').select('*').eq('character_id', characterData.id);
     for (const d of wanted) {
       const row = (existing || []).find(x => x.resource_key === d.key);
@@ -49,8 +40,7 @@
     await render(characterData.id);
   }
   async function change(id, delta) {
-    const { data } = await client.from('character_resources').select('current_uses,max_uses').eq('id', id).single();
-    if (!data) return;
+    const { data } = await client.from('character_resources').select('current_uses,max_uses').eq('id', id).single(); if (!data) return;
     await client.from('character_resources').update({ current_uses: Math.max(0, Math.min(data.max_uses, data.current_uses + delta)) }).eq('id', id);
     const c = await character(); if (c) await render(c.id);
   }
@@ -62,7 +52,13 @@
   };
   document.addEventListener('click', event => { const minus = event.target.closest('.resource-minus'); const plus = event.target.closest('.resource-plus'); if (minus) change(minus.dataset.id, -1); if (plus) change(plus.dataset.id, 1); });
   window.addEventListener('character-rest-applied', async event => { const c = await character(); if (c) await window.restoreCharacterResources(c.id, event.detail?.restType || 'long'); });
-  const observer = new MutationObserver(async () => { const modal = document.querySelector('#sheet-modal'); if (!modal || modal.classList.contains('hidden')) return; const c = await character(); if (c) await sync(c); });
+  let sheetOpen = false;
+  const observer = new MutationObserver(async () => {
+    const modal = document.querySelector('#sheet-modal'); if (!modal) return;
+    const nowOpen = !modal.classList.contains('hidden');
+    if (nowOpen && !sheetOpen) { sheetOpen = true; const c = await character(); if (c) await sync(c); }
+    if (!nowOpen) sheetOpen = false;
+  });
   observer.observe(document.body, { attributes: true, subtree: true, attributeFilter: ['class'] });
   document.addEventListener('change', async event => { if (!['sheet-level', 'score-charisma'].includes(event.target.id)) return; const c = await character(); if (c) await sync(c); });
 })();
