@@ -1,0 +1,77 @@
+const MASTERY_URL = 'https://wmeuebjbvoqudhpwtxyn.supabase.co';
+const MASTERY_KEY = 'sb_publishable_jYrKnt_Unuv5M6XT1t0AaQ_quQTOpCD';
+const { createClient: createMasteryClient } = window.supabase;
+const masterySupabase = createMasteryClient(MASTERY_URL, MASTERY_KEY);
+
+const MASTERY_COUNTS = { barbarian: level => level >= 10 ? 4 : level >= 4 ? 3 : 2, fighter: level => level >= 16 ? 6 : level >= 10 ? 5 : level >= 4 ? 4 : 3, paladin: () => 2, ranger: () => 2, rogue: () => 2 };
+const SIMPLE_MARTIAL = new Set(['barbarian','fighter','paladin','ranger']);
+const WEAPON_ROWS = ['Club','Dagger','Dart','Handaxe','Javelin','Light Hammer','Mace','Quarterstaff','Sickle','Spear','Battleaxe','Flail','Glaive','Greataxe','Greatsword','Halberd','Hand Crossbow','Heavy Crossbow','Lance','Longsword','Maul','Morningstar','Pike','Rapier','Scimitar','Shortbow','Shortsword','Trident','War Pick','Warhammer','Whip','Light Crossbow','Sling','Greatclub'];
+
+async function getMasteryCharacter() {
+  const name = document.querySelector('#sheet-name')?.value?.trim();
+  if (!name) return null;
+  const { data: { user } } = await masterySupabase.auth.getUser();
+  if (!user) return null;
+  const { data } = await masterySupabase.from('characters').select('id,class_key,level').eq('user_id', user.id).eq('name', name).maybeSingle();
+  return data || null;
+}
+
+async function loadMasteryWeapons(characterId) {
+  const { data, error } = await masterySupabase.from('character_weapon_mastery').select('*').eq('character_id', characterId).order('sort_order');
+  if (error) throw error;
+  return data || [];
+}
+
+async function loadEligibleWeapons(classKey) {
+  const { data, error } = await masterySupabase.from('equipment_catalog').select('name,properties').eq('category','weapon').order('name');
+  if (error) throw error;
+  return (data || []).filter(item => {
+    const category = String(item.properties?.weapon_category || '').toLowerCase();
+    const properties = String(item.properties?.properties || '');
+    if (classKey === 'rogue') return category === 'simple' || /\bFinesse\b/i.test(properties) || /\bLight\b/i.test(properties);
+    if (SIMPLE_MARTIAL.has(classKey)) return category === 'simple' || category === 'martial';
+    return false;
+  });
+}
+
+async function saveMasterySelections(characterId) {
+  const selections = [...document.querySelectorAll('.mastery-select')].map((select, index) => ({ character_id: characterId, weapon_name: select.value, sort_order: index })).filter(row => row.weapon_name);
+  const deletion = await masterySupabase.from('character_weapon_mastery').delete().eq('character_id', characterId);
+  if (deletion.error) throw deletion.error;
+  if (selections.length) {
+    const insertion = await masterySupabase.from('character_weapon_mastery').insert(selections);
+    if (insertion.error) throw insertion.error;
+  }
+}
+
+async function renderWeaponMastery() {
+  const box = document.querySelector('#weapon-mastery-grid');
+  if (!box) return;
+  const character = await getMasteryCharacter();
+  if (!character || !MASTERY_COUNTS[character.class_key]) { box.innerHTML = ''; return; }
+  const count = MASTERY_COUNTS[character.class_key](Number(document.querySelector('#sheet-level')?.value || character.level || 1));
+  const [weapons, selected] = await Promise.all([loadEligibleWeapons(character.class_key), loadMasteryWeapons(character.id)]);
+  const selectedNames = selected.map(row => row.weapon_name);
+  const lang = localStorage.getItem('preferredLanguage') || 'en';
+  box.innerHTML = `<div class="progression-note">${lang === 'fr' ? `${count} maîtrises d’armes actives. Elles peuvent être changées après un repos long.` : `${count} active weapon masteries. They can be changed after a Long Rest.`}</div>`;
+  for (let i = 0; i < count; i += 1) {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'mastery-row';
+    wrapper.innerHTML = `<label>${lang === 'fr' ? `Maîtrise ${i + 1}` : `Mastery ${i + 1}`}</label><select class="mastery-select"><option value="">—</option>${weapons.map(item => `<option value="${item.name.replace(/"/g,'&quot;')}" ${selectedNames[i] === item.name ? 'selected' : ''}>${item.name}</option>`).join('')}</select>`;
+    box.appendChild(wrapper);
+  }
+  box.querySelectorAll('.mastery-select').forEach(select => select.addEventListener('change', async () => {
+    const values = [...box.querySelectorAll('.mastery-select')].map(s => s.value).filter(Boolean);
+    if (new Set(values).size !== values.length) { select.value = ''; return; }
+    try { await saveMasterySelections(character.id); } catch (error) { console.error(error); }
+  }));
+}
+
+document.addEventListener('change', event => {
+  if (event.target.matches('#sheet-level')) setTimeout(renderWeaponMastery, 150);
+});
+const observer = new MutationObserver(() => {
+  const modal = document.querySelector('#sheet-modal');
+  if (modal && !modal.classList.contains('hidden') && document.querySelector('#sheet-name')?.value) setTimeout(renderWeaponMastery, 100);
+});
+observer.observe(document.body, { childList: true, subtree: true });
