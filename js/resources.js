@@ -4,7 +4,7 @@
     const l = Number(level || 1);
     const d = {
       barbarian: [{ key: 'rage', label: 'Rage', max: l >= 17 ? 6 : l >= 12 ? 5 : l >= 6 ? 4 : l >= 3 ? 3 : 2, short: 1, long: 'all' }],
-      bard: [{ key: 'bardic_inspiration', label: 'Bardic Inspiration', max: Math.max(1, chaMod), short: 0, long: 'all' }],
+      bard: [{ key: 'bardic_inspiration', label: 'Bardic Inspiration', max: Math.max(1, chaMod), short: l >= 5 ? 'all' : 0, long: 'all' }],
       cleric: l >= 2 ? [{ key: 'channel_divinity', label: 'Channel Divinity', max: l >= 9 ? 4 : l >= 5 ? 3 : 2, short: 1, long: 'all' }] : [],
       druid: l >= 2 ? [{ key: 'wild_shape', label: 'Wild Shape', max: l >= 17 ? 6 : l >= 6 ? 3 : 2, short: 1, long: 'all' }] : [],
       fighter: [{ key: 'second_wind', label: 'Second Wind', max: l >= 10 ? 4 : l >= 4 ? 3 : 2, short: 1, long: 'all' }, ...(l >= 2 ? [{ key: 'action_surge', label: 'Action Surge', max: l >= 17 ? 2 : 1, short: 1, long: 'all' }] : [])],
@@ -12,13 +12,12 @@
       paladin: [{ key: 'lay_on_hands', label: 'Lay On Hands', max: 5 * l, short: 0, long: 'all', pool: true }, ...(l >= 3 ? [{ key: 'channel_divinity', label: 'Channel Divinity', max: l >= 11 ? 3 : 2, short: 1, long: 'all' }] : [])],
       ranger: [{ key: 'favored_enemy', label: 'Favored Enemy', max: l >= 17 ? 6 : l >= 13 ? 5 : l >= 9 ? 4 : l >= 5 ? 3 : 2, short: 0, long: 'all' }],
       sorcerer: [{ key: 'innate_sorcery', label: 'Innate Sorcery', max: 2, short: 0, long: 'all' }, ...(l >= 2 ? [{ key: 'sorcery_points', label: 'Sorcery Points', max: l, short: 0, long: 'all', pool: true }] : [])],
-      warlock: l >= 2 ? [{ key: 'magical_cunning', label: 'Magical Cunning', max: 1, short: 0, long: 'all' }] : [],
-      wizard: l >= 2 ? [{ key: 'arcane_recovery', label: 'Arcane Recovery', max: 1, short: 0, long: 'all' }] : []
+      warlock: l >= 2 ? [{ key: 'magical_cunning', label: 'Magical Cunning', max: 1, short: 0, long: 'all' }] : []
     };
     return d[classKey] || [];
   };
   const mod = score => Math.floor((Number(score || 10) - 10) / 2);
-  const labels = { rage: 'Rage', bardic_inspiration: 'Bardic Inspiration', channel_divinity: 'Channel Divinity', wild_shape: 'Wild Shape', second_wind: 'Second Wind', action_surge: 'Action Surge', focus_points: 'Focus Points', lay_on_hands: 'Lay On Hands', favored_enemy: 'Favored Enemy', innate_sorcery: 'Innate Sorcery', sorcery_points: 'Sorcery Points', magical_cunning: 'Magical Cunning', arcane_recovery: 'Arcane Recovery' };
+  const labels = { rage: 'Rage', bardic_inspiration: 'Bardic Inspiration', channel_divinity: 'Channel Divinity', wild_shape: 'Wild Shape', second_wind: 'Second Wind', action_surge: 'Action Surge', focus_points: 'Focus Points', lay_on_hands: 'Lay On Hands', favored_enemy: 'Favored Enemy', innate_sorcery: 'Innate Sorcery', sorcery_points: 'Sorcery Points', magical_cunning: 'Magical Cunning' };
   const label = key => labels[key] || key;
   const recovery = r => r.short_rest_restore === null ? 'Short Rest: all' : Number(r.short_rest_restore) > 0 ? `Short Rest: +${r.short_rest_restore}` : 'Long Rest: all';
   async function character() {
@@ -41,9 +40,7 @@
       const row = (existing || []).find(x => x.resource_key === d.key);
       const patch = { max_uses: d.max, recovery: d.short === 'all' ? 'short_rest_all' : d.short > 0 ? 'short_rest_one' : 'long_rest', short_rest_restore: d.short === 'all' ? null : Number(d.short || 0), long_rest_restore: d.long };
       if (!row) await client.from('character_resources').insert({ character_id: characterData.id, resource_key: d.key, current_uses: d.max, ...patch });
-      else if (row.max_uses !== d.max || row.recovery !== patch.recovery || row.short_rest_restore !== patch.short_rest_restore) {
-        await client.from('character_resources').update({ ...patch, current_uses: Math.min(d.max, row.current_uses + Math.max(0, d.max - row.max_uses)) }).eq('id', row.id);
-      }
+      else if (row.max_uses !== d.max || row.recovery !== patch.recovery || row.short_rest_restore !== patch.short_rest_restore) await client.from('character_resources').update({ ...patch, current_uses: Math.min(d.max, row.current_uses + Math.max(0, d.max - row.max_uses)) }).eq('id', row.id);
     }
     await render(characterData.id);
   }
