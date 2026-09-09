@@ -12,7 +12,7 @@ const proficiencyBonus = level => 2 + Math.floor((Math.max(1, Number(level ?? 1)
 
 function weaponProficient(classKey, item) {
   if (SIMPLE_AND_MARTIAL.has(classKey)) return true;
-  if (SIMPLE_ONLY.has(classKey)) return item.properties?.category === undefined || String(item.properties?.category).toLowerCase() === 'simple';
+  if (SIMPLE_ONLY.has(classKey)) return String(item.properties?.weapon_category || '').toLowerCase() === 'simple';
   return false;
 }
 
@@ -62,11 +62,14 @@ function injectAttackButtons() {
     const name = row.querySelector('.inventory-main strong')?.textContent?.trim();
     const equipped = row.querySelector('.inventory-equip')?.checked;
     if (!equipped || !name) return;
-    const button = document.createElement('button');
-    button.type = 'button'; button.className = 'icon-button inventory-attack-sync'; button.title = 'Calculate attack'; button.textContent = '⚔';
-    button.addEventListener('click', () => addAttackForRow(row));
-    const saveButton = row.querySelector('.inventory-save');
-    if (saveButton) saveButton.insertAdjacentElement('beforebegin', button);
+    attackSupabase.from('equipment_catalog').select('id').eq('name', name).eq('category', 'weapon').maybeSingle().then(({data}) => {
+      if (!data || row.querySelector('.inventory-attack-sync')) return;
+      const button = document.createElement('button');
+      button.type = 'button'; button.className = 'icon-button inventory-attack-sync'; button.title = 'Calculate attack'; button.textContent = '⚔';
+      button.addEventListener('click', () => addAttackForRow(row));
+      const saveButton = row.querySelector('.inventory-save');
+      if (saveButton) saveButton.insertAdjacentElement('beforebegin', button);
+    });
   });
 }
 
@@ -76,4 +79,4 @@ document.addEventListener('click', event => {
 });
 const observer = new MutationObserver(injectAttackButtons);
 observer.observe(document.body, { childList: true, subtree: true });
-setInterval(injectAttackButtons, 500);
+setInterval(injectAttackButtons, 700);
