@@ -1,34 +1,22 @@
 import { createCharacter, getDndOptions, loadCharacters } from './characters.js';
-import { loadCharacterSheet, saveCharacterSheet, ABILITIES } from './character-sheet.js';
+import { loadCharacterSheet, saveCharacterSheet, ABILITIES, SKILLS } from './character-sheet.js';
 
 const SUPABASE_URL = 'https://wmeuebjbvoqudhpwtxyn.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_jYrKnt_Unuv5M6XT1t0AaQ_quQTOpCD';
 const { createClient } = window.supabase;
 const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
 
-const authView = document.querySelector('#auth-view');
-const dashboardView = document.querySelector('#dashboard-view');
-const authForm = document.querySelector('#auth-form');
-const authMessage = document.querySelector('#auth-message');
-const signUpButton = document.querySelector('#sign-up-button');
-const magicLinkButton = document.querySelector('#magic-link-button');
-const signOutButton = document.querySelector('#sign-out-button');
-const languageToggle = document.querySelector('#language-toggle');
-const userEmail = document.querySelector('#user-email');
-const charactersList = document.querySelector('#characters-list');
-const emptyState = document.querySelector('#empty-state');
-const newCharacterButton = document.querySelector('#new-character-button');
-const characterModal = document.querySelector('#character-modal');
-const characterForm = document.querySelector('#character-form');
-const characterMessage = document.querySelector('#character-message');
-const sheetModal = document.querySelector('#sheet-modal');
-const sheetForm = document.querySelector('#sheet-form');
-const sheetMessage = document.querySelector('#sheet-message');
+const authView = document.querySelector('#auth-view'), dashboardView = document.querySelector('#dashboard-view');
+const authForm = document.querySelector('#auth-form'), authMessage = document.querySelector('#auth-message');
+const signUpButton = document.querySelector('#sign-up-button'), magicLinkButton = document.querySelector('#magic-link-button');
+const signOutButton = document.querySelector('#sign-out-button'), languageToggle = document.querySelector('#language-toggle');
+const userEmail = document.querySelector('#user-email'), charactersList = document.querySelector('#characters-list'), emptyState = document.querySelector('#empty-state');
+const newCharacterButton = document.querySelector('#new-character-button'), characterModal = document.querySelector('#character-modal'), characterForm = document.querySelector('#character-form'), characterMessage = document.querySelector('#character-message');
+const sheetModal = document.querySelector('#sheet-modal'), sheetForm = document.querySelector('#sheet-form'), sheetMessage = document.querySelector('#sheet-message');
+const savingThrowsGrid = document.querySelector('#saving-throws-grid'), skillsGrid = document.querySelector('#skills-grid'), attacksList = document.querySelector('#attacks-list');
 
 let currentLanguage = localStorage.getItem('preferredLanguage') || 'en';
-let currentUser = null;
-let currentSheetCharacterId = null;
-let charactersCache = [];
+let currentUser = null, currentSheetCharacterId = null, charactersCache = [];
 
 const translations = {
   en: {
@@ -37,7 +25,8 @@ const translations = {
     'dashboard.eyebrow':'Your campaign','dashboard.title':'Characters','dashboard.newCharacter':'+ New character','dashboard.emptyTitle':'No characters yet','dashboard.emptyText':'Your first D&D 2024 character will appear here.','dashboard.open':'Open sheet',
     'character.createEyebrow':'D&D 2024','character.createTitle':'Create a character','character.name':'Character name','character.class':'Class','character.species':'Species','character.background':'Background','character.create':'Create character','common.cancel':'Cancel',
     'character.level':'Level','character.hp':'HP','character.ac':'AC','character.speed':'Speed','character.required':'Please complete all fields.','character.failed':'Unable to create the character.',
-    'sheet.eyebrow':'D&D 2024','sheet.title':'Character sheet','sheet.level':'Level','sheet.experience':'Experience','sheet.hitDice':'Hit dice','sheet.combat':'Combat','sheet.hpCurrent':'Current HP','sheet.hpMax':'Max HP','sheet.hpTemporary':'Temp HP','sheet.abilities':'Ability scores','sheet.inspiration':'Heroic Inspiration','sheet.save':'Save changes','sheet.saved':'Changes saved.','sheet.failed':'Unable to save changes.','sheet.loading':'Loading character...'
+    'sheet.eyebrow':'D&D 2024','sheet.title':'Character sheet','sheet.level':'Level','sheet.experience':'Experience','sheet.hitDice':'Hit dice','sheet.combat':'Combat','sheet.hpCurrent':'Current HP','sheet.hpMax':'Max HP','sheet.hpTemporary':'Temp HP','sheet.deathSuccesses':'Death save successes','sheet.deathFailures':'Death save failures','sheet.abilities':'Ability scores','sheet.savingThrows':'Saving throws','sheet.skills':'Skills','sheet.attacks':'Attacks','sheet.attackName':'Name','sheet.attackBonus':'Attack bonus','sheet.damage':'Damage','sheet.notes':'Notes','sheet.addAttack':'+ Add attack','sheet.inspiration':'Heroic Inspiration','sheet.save':'Save changes','sheet.saved':'Changes saved.','sheet.failed':'Unable to save changes.','sheet.loading':'Loading character...','sheet.proficient':'Proficient','sheet.remove':'Remove',
+    'skill.acrobatics':'Acrobatics','skill.animal_handling':'Animal Handling','skill.arcana':'Arcana','skill.athletics':'Athletics','skill.deception':'Deception','skill.history':'History','skill.insight':'Insight','skill.intimidation':'Intimidation','skill.investigation':'Investigation','skill.medicine':'Medicine','skill.nature':'Nature','skill.perception':'Perception','skill.performance':'Performance','skill.persuasion':'Persuasion','skill.religion':'Religion','skill.sleight_of_hand':'Sleight of Hand','skill.stealth':'Stealth','skill.survival':'Survival'
   },
   fr: {
     'app.eyebrow':'D&D 2024','app.title':'Gestionnaire de personnages','app.subtitle':'Créez, gérez et sauvegardez vos personnages en toute sécurité.','app.footer':'Compagnon D&D 2024',
@@ -45,96 +34,40 @@ const translations = {
     'dashboard.eyebrow':'Votre campagne','dashboard.title':'Personnages','dashboard.newCharacter':'+ Nouveau personnage','dashboard.emptyTitle':'Aucun personnage','dashboard.emptyText':'Votre premier personnage D&D 2024 apparaîtra ici.','dashboard.open':'Ouvrir la fiche',
     'character.createEyebrow':'D&D 2024','character.createTitle':'Créer un personnage','character.name':'Nom du personnage','character.class':'Classe','character.species':'Espèce','character.background':'Historique','character.create':'Créer le personnage','common.cancel':'Annuler',
     'character.level':'Niveau','character.hp':'PV','character.ac':'CA','character.speed':'Vitesse','character.required':'Veuillez remplir tous les champs.','character.failed':'Impossible de créer le personnage.',
-    'sheet.eyebrow':'D&D 2024','sheet.title':'Fiche de personnage','sheet.level':'Niveau','sheet.experience':'Expérience','sheet.hitDice':'Dé de vie','sheet.combat':'Combat','sheet.hpCurrent':'PV actuels','sheet.hpMax':'PV max','sheet.hpTemporary':'PV temporaires','sheet.abilities':'Caractéristiques','sheet.inspiration':'Inspiration héroïque','sheet.save':'Enregistrer','sheet.saved':'Modifications enregistrées.','sheet.failed':'Impossible d’enregistrer les modifications.','sheet.loading':'Chargement du personnage...'
+    'sheet.eyebrow':'D&D 2024','sheet.title':'Fiche de personnage','sheet.level':'Niveau','sheet.experience':'Expérience','sheet.hitDice':'Dé de vie','sheet.combat':'Combat','sheet.hpCurrent':'PV actuels','sheet.hpMax':'PV max','sheet.hpTemporary':'PV temporaires','sheet.deathSuccesses':'Jets de sauvegarde contre la mort réussis','sheet.deathFailures':'Jets de sauvegarde contre la mort échoués','sheet.abilities':'Caractéristiques','sheet.savingThrows':'Jets de sauvegarde','sheet.skills':'Compétences','sheet.attacks':'Attaques','sheet.attackName':'Nom','sheet.attackBonus':'Bonus d’attaque','sheet.damage':'Dégâts','sheet.notes':'Notes','sheet.addAttack':'+ Ajouter une attaque','sheet.inspiration':'Inspiration héroïque','sheet.save':'Enregistrer','sheet.saved':'Modifications enregistrées.','sheet.failed':'Impossible d’enregistrer les modifications.','sheet.loading':'Chargement du personnage...','sheet.proficient':'Maîtrise','sheet.remove':'Supprimer',
+    'skill.acrobatics':'Acrobaties','skill.animal_handling':'Dressage','skill.arcana':'Arcanes','skill.athletics':'Athlétisme','skill.deception':'Tromperie','skill.history':'Histoire','skill.insight':'Intuition','skill.intimidation':'Intimidation','skill.investigation':'Investigation','skill.medicine':'Médecine','skill.nature':'Nature','skill.perception':'Perception','skill.performance':'Représentation','skill.persuasion':'Persuasion','skill.religion':'Religion','skill.sleight_of_hand':'Escamotage','skill.stealth':'Discrétion','skill.survival':'Survie'
   }
 };
-
-const abilityLabels = {
-  en: { strength:'Strength', dexterity:'Dexterity', constitution:'Constitution', intelligence:'Intelligence', wisdom:'Wisdom', charisma:'Charisma' },
-  fr: { strength:'Force', dexterity:'Dextérité', constitution:'Constitution', intelligence:'Intelligence', wisdom:'Sagesse', charisma:'Charisme' }
-};
-
-function t(key) { return translations[currentLanguage][key] || key; }
-function setMessage(element, message, type = '') { element.textContent = message; element.className = `status-message ${type}`; }
-function escapeHtml(value) { return String(value).replace(/[&<>'"]/g, (char) => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', "'":'&#39;', '"':'&quot;' }[char])); }
-
-function applyLanguage() {
-  document.documentElement.lang = currentLanguage;
-  languageToggle.textContent = currentLanguage === 'en' ? 'FR' : 'EN';
-  document.querySelectorAll('[data-i18n]').forEach((element) => { const value = translations[currentLanguage][element.dataset.i18n]; if (value) element.textContent = value; });
-  renderAbilityInputs();
-  renderCharactersCache();
-}
-
-function showAuthenticated(user) { currentUser = user; authView.classList.add('hidden'); dashboardView.classList.remove('hidden'); signOutButton.classList.remove('hidden'); userEmail.textContent = user?.email || ''; refreshCharacters(); }
-function showUnauthenticated() { currentUser = null; authView.classList.remove('hidden'); dashboardView.classList.add('hidden'); signOutButton.classList.add('hidden'); userEmail.textContent = ''; closeCharacterModal(); closeSheetModal(); }
-
-async function signIn(email, password) { const { error } = await supabase.auth.signInWithPassword({ email, password }); if (error) throw error; setMessage(authMessage, currentLanguage === 'fr' ? 'Connexion réussie.' : 'Signed in successfully.', 'success'); }
-async function signUp(email, password) { const { error } = await supabase.auth.signUp({ email, password }); if (error) throw error; setMessage(authMessage, currentLanguage === 'fr' ? 'Compte créé. Vérifiez votre e-mail si une confirmation est demandée.' : 'Account created. Check your email if confirmation is required.', 'success'); }
-async function sendMagicLink(email) { const redirectTo = window.location.origin + window.location.pathname; const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: redirectTo } }); if (error) throw error; setMessage(authMessage, currentLanguage === 'fr' ? 'Lien de connexion envoyé. Vérifiez votre e-mail.' : 'Magic link sent. Check your email.', 'success'); }
-
-async function refreshCharacters() {
-  if (!currentUser) return;
-  try { charactersCache = await loadCharacters(supabase, currentUser.id); renderCharactersCache(); }
-  catch (error) { charactersList.innerHTML = `<p class="status-message error">${escapeHtml(error.message)}</p>`; emptyState.classList.add('hidden'); }
-}
-
-function renderCharactersCache() {
-  if (!currentUser || dashboardView.classList.contains('hidden')) return;
-  charactersList.innerHTML = '';
-  emptyState.classList.toggle('hidden', charactersCache.length > 0);
-  charactersCache.forEach((character) => {
-    const card = document.createElement('article'); card.className = 'character-card';
-    card.innerHTML = `<div class="character-card-icon">⚔️</div><h2>${escapeHtml(character.name || (currentLanguage === 'fr' ? 'Sans nom' : 'Unnamed'))}</h2><p class="character-meta">${escapeHtml(character.species_key || '—')} · ${escapeHtml(character.class_key || '—')}</p><div class="character-stats"><span>${t('character.level')} <strong>${character.level ?? 1}</strong></span><span>${t('character.hp')} <strong>${character.hp_current ?? 0}/${character.hp_max ?? 0}</strong></span><span>${t('character.ac')} <strong>${character.armor_class ?? 0}</strong></span><span>${t('character.speed')} <strong>${character.speed ?? 0}</strong></span></div><button class="button button-secondary sheet-open-button" type="button" data-character-id="${character.id}">${t('dashboard.open')}</button>`;
-    charactersList.appendChild(card);
-  });
-  document.querySelectorAll('.sheet-open-button').forEach((button) => button.addEventListener('click', () => openSheetModal(button.dataset.characterId)));
-}
-
-function populateCharacterOptions() {
-  const { classes, species, backgrounds } = getDndOptions();
-  const fill = (id, options) => { document.querySelector(id).innerHTML = options.map(([value, label]) => `<option value="${value}">${label}</option>`).join(''); };
-  fill('#character-class', classes); fill('#character-species', species); fill('#character-background', backgrounds);
-}
-function openCharacterModal() { characterForm.reset(); setMessage(characterMessage, ''); characterModal.classList.remove('hidden'); characterModal.setAttribute('aria-hidden', 'false'); document.querySelector('#character-name').focus(); }
-function closeCharacterModal() { characterModal.classList.add('hidden'); characterModal.setAttribute('aria-hidden', 'true'); }
-function renderAbilityInputs(values = {}) { const grid = document.querySelector('#ability-scores-grid'); if (!grid) return; grid.innerHTML = ABILITIES.map((ability) => `<div class="ability-box"><label for="score-${ability}">${abilityLabels[currentLanguage][ability]}</label><input id="score-${ability}" name="${ability}" type="number" min="1" max="30" value="${values[ability] ?? 10}" required /></div>`).join(''); }
-
-async function openSheetModal(characterId) {
-  currentSheetCharacterId = characterId; sheetModal.classList.remove('hidden'); sheetModal.setAttribute('aria-hidden', 'false'); setMessage(sheetMessage, t('sheet.loading'));
-  try {
-    const { character, scores } = await loadCharacterSheet(supabase, characterId, currentUser.id);
-    document.querySelector('#sheet-name').value = character.name || ''; document.querySelector('#sheet-level').value = character.level ?? 1; document.querySelector('#sheet-xp').value = character.experience ?? 0; document.querySelector('#sheet-hit-dice').value = character.hit_dice || '';
-    document.querySelector('#sheet-hp-current').value = character.hp_current ?? 0; document.querySelector('#sheet-hp-max').value = character.hp_max ?? 0; document.querySelector('#sheet-hp-temp').value = character.hp_temporary ?? 0; document.querySelector('#sheet-ac').value = character.armor_class ?? 10; document.querySelector('#sheet-speed').value = character.speed ?? 30; document.querySelector('#sheet-inspiration').checked = Boolean(character.inspiration_heroic);
-    renderAbilityInputs(scores || {}); setMessage(sheetMessage, '');
-  } catch (error) { setMessage(sheetMessage, `${t('sheet.failed')} ${error.message}`, 'error'); }
-}
-function closeSheetModal() { sheetModal.classList.add('hidden'); sheetModal.setAttribute('aria-hidden', 'true'); currentSheetCharacterId = null; }
-
-characterForm.addEventListener('submit', async (event) => {
-  event.preventDefault(); if (!currentUser) return; const values = Object.fromEntries(new FormData(characterForm).entries());
-  if (!values.name || !values.classKey || !values.speciesKey || !values.backgroundKey) { setMessage(characterMessage, t('character.required'), 'error'); return; }
-  const submitButton = document.querySelector('#create-character-submit'); submitButton.disabled = true;
-  try { await createCharacter(supabase, currentUser.id, values); closeCharacterModal(); await refreshCharacters(); } catch (error) { setMessage(characterMessage, `${t('character.failed')} ${error.message}`, 'error'); } finally { submitButton.disabled = false; }
-});
-
-sheetForm.addEventListener('submit', async (event) => {
-  event.preventDefault(); if (!currentUser || !currentSheetCharacterId) return;
-  const values = Object.fromEntries(new FormData(sheetForm).entries()); values.inspirationHeroic = document.querySelector('#sheet-inspiration').checked;
-  const scores = Object.fromEntries(ABILITIES.map((ability) => [ability, values[ability]])); const submitButton = document.querySelector('#save-sheet-submit'); submitButton.disabled = true;
-  try { await saveCharacterSheet(supabase, currentSheetCharacterId, currentUser.id, values, scores); setMessage(sheetMessage, t('sheet.saved'), 'success'); await refreshCharacters(); } catch (error) { setMessage(sheetMessage, `${t('sheet.failed')} ${error.message}`, 'error'); } finally { submitButton.disabled = false; }
-});
-
-authForm.addEventListener('submit', async (event) => { event.preventDefault(); const formData = new FormData(authForm); try { setMessage(authMessage, ''); await signIn(formData.get('email'), formData.get('password')); } catch (error) { setMessage(authMessage, error.message, 'error'); } });
-signUpButton.addEventListener('click', async () => { const formData = new FormData(authForm); const email = formData.get('email'); const password = formData.get('password'); if (!email || !password) { setMessage(authMessage, currentLanguage === 'fr' ? 'Saisissez un e-mail et un mot de passe.' : 'Enter an email and password.', 'error'); return; } try { await signUp(email, password); } catch (error) { setMessage(authMessage, error.message, 'error'); } });
-magicLinkButton.addEventListener('click', async () => { const email = new FormData(authForm).get('email'); if (!email) { setMessage(authMessage, currentLanguage === 'fr' ? 'Saisissez votre e-mail.' : 'Enter your email.', 'error'); return; } try { await sendMagicLink(email); } catch (error) { setMessage(authMessage, error.message, 'error'); } });
-signOutButton.addEventListener('click', async () => { const { error } = await supabase.auth.signOut(); if (error) { setMessage(authMessage, error.message, 'error'); return; } showUnauthenticated(); setMessage(authMessage, currentLanguage === 'fr' ? 'Vous êtes déconnecté.' : 'You have been signed out.', 'success'); });
-languageToggle.addEventListener('click', () => { currentLanguage = currentLanguage === 'en' ? 'fr' : 'en'; localStorage.setItem('preferredLanguage', currentLanguage); applyLanguage(); });
-newCharacterButton.addEventListener('click', openCharacterModal);
-document.querySelectorAll('[data-close-modal]').forEach((element) => element.addEventListener('click', closeCharacterModal));
-document.querySelectorAll('[data-close-sheet]').forEach((element) => element.addEventListener('click', closeSheetModal));
-document.addEventListener('keydown', (event) => { if (event.key === 'Escape') { if (!characterModal.classList.contains('hidden')) closeCharacterModal(); if (!sheetModal.classList.contains('hidden')) closeSheetModal(); } });
-supabase.auth.onAuthStateChange((_event, session) => { if (session?.user) showAuthenticated(session.user); else showUnauthenticated(); });
-
-populateCharacterOptions(); renderAbilityInputs(); applyLanguage();
-const { data: { session } } = await supabase.auth.getSession(); if (session?.user) showAuthenticated(session.user); else showUnauthenticated();
+const abilityLabels = { en:{strength:'Strength',dexterity:'Dexterity',constitution:'Constitution',intelligence:'Intelligence',wisdom:'Wisdom',charisma:'Charisma'}, fr:{strength:'Force',dexterity:'Dextérité',constitution:'Constitution',intelligence:'Intelligence',wisdom:'Sagesse',charisma:'Charisme'} };
+const abilityShort = { en:{strength:'STR',dexterity:'DEX',constitution:'CON',intelligence:'INT',wisdom:'WIS',charisma:'CHA'}, fr:{strength:'FOR',dexterity:'DEX',constitution:'CON',intelligence:'INT',wisdom:'SAG',charisma:'CHA'} };
+function t(key){return translations[currentLanguage][key]||key;}
+function setMessage(element,message,type=''){element.textContent=message;element.className=`status-message ${type}`;}
+function escapeHtml(value){return String(value).replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));}
+function applyLanguage(){document.documentElement.lang=currentLanguage;languageToggle.textContent=currentLanguage==='en'?'FR':'EN';document.querySelectorAll('[data-i18n]').forEach(e=>{const v=translations[currentLanguage][e.dataset.i18n];if(v)e.textContent=v;});renderAbilityInputs();renderProficiencyInputs();renderCharactersCache();}
+function showAuthenticated(user){currentUser=user;authView.classList.add('hidden');dashboardView.classList.remove('hidden');signOutButton.classList.remove('hidden');userEmail.textContent=user?.email||'';refreshCharacters();}
+function showUnauthenticated(){currentUser=null;authView.classList.remove('hidden');dashboardView.classList.add('hidden');signOutButton.classList.add('hidden');userEmail.textContent='';closeCharacterModal();closeSheetModal();}
+async function signIn(email,password){const{error}=await supabase.auth.signInWithPassword({email,password});if(error)throw error;setMessage(authMessage,currentLanguage==='fr'?'Connexion réussie.':'Signed in successfully.','success');}
+async function signUp(email,password){const{error}=await supabase.auth.signUp({email,password});if(error)throw error;setMessage(authMessage,currentLanguage==='fr'?'Compte créé. Vérifiez votre e-mail si une confirmation est demandée.':'Account created. Check your email if confirmation is required.','success');}
+async function sendMagicLink(email){const redirectTo=window.location.origin+window.location.pathname;const{error}=await supabase.auth.signInWithOtp({email,options:{emailRedirectTo:redirectTo}});if(error)throw error;setMessage(authMessage,currentLanguage==='fr'?'Lien de connexion envoyé. Vérifiez votre e-mail.':'Magic link sent. Check your email.','success');}
+async function refreshCharacters(){if(!currentUser)return;try{charactersCache=await loadCharacters(supabase,currentUser.id);renderCharactersCache();}catch(error){charactersList.innerHTML=`<p class="status-message error">${escapeHtml(error.message)}</p>`;emptyState.classList.add('hidden');}}
+function renderCharactersCache(){if(!currentUser||dashboardView.classList.contains('hidden'))return;charactersList.innerHTML='';emptyState.classList.toggle('hidden',charactersCache.length>0);charactersCache.forEach(c=>{const card=document.createElement('article');card.className='character-card';card.innerHTML=`<div class="character-card-icon">⚔️</div><h2>${escapeHtml(c.name||(currentLanguage==='fr'?'Sans nom':'Unnamed'))}</h2><p class="character-meta">${escapeHtml(c.species_key||'—')} · ${escapeHtml(c.class_key||'—')}</p><div class="character-stats"><span>${t('character.level')} <strong>${c.level??1}</strong></span><span>${t('character.hp')} <strong>${c.hp_current??0}/${c.hp_max??0}</strong></span><span>${t('character.ac')} <strong>${c.armor_class??0}</strong></span><span>${t('character.speed')} <strong>${c.speed??0}</strong></span></div><button class="button button-secondary sheet-open-button" type="button" data-character-id="${c.id}">${t('dashboard.open')}</button>`;charactersList.appendChild(card);});document.querySelectorAll('.sheet-open-button').forEach(b=>b.addEventListener('click',()=>openSheetModal(b.dataset.characterId)));}
+function populateCharacterOptions(){const{classes,species,backgrounds}=getDndOptions();const fill=(id,options)=>{document.querySelector(id).innerHTML=options.map(([value,label])=>`<option value="${value}">${label}</option>`).join('');};fill('#character-class',classes);fill('#character-species',species);fill('#character-background',backgrounds);}
+function openCharacterModal(){characterForm.reset();setMessage(characterMessage,'');characterModal.classList.remove('hidden');characterModal.setAttribute('aria-hidden','false');document.querySelector('#character-name').focus();}
+function closeCharacterModal(){characterModal.classList.add('hidden');characterModal.setAttribute('aria-hidden','true');}
+function renderAbilityInputs(values={}){const grid=document.querySelector('#ability-scores-grid');if(!grid)return;grid.innerHTML=ABILITIES.map(a=>`<div class="ability-box"><label for="score-${a}">${abilityLabels[currentLanguage][a]} <small>${abilityShort[currentLanguage][a]}</small></label><input id="score-${a}" name="${a}" type="number" min="1" max="30" value="${values[a]??10}" required /></div>`).join('');}
+function renderProficiencyInputs(skills={},saves={}){if(savingThrowsGrid)savingThrowsGrid.innerHTML=ABILITIES.map(a=>`<label class="check-card"><input type="checkbox" name="save-${a}" data-save-ability="${a}" ${saves[a]?'checked':''}><span>${abilityLabels[currentLanguage][a]} <small>${abilityShort[currentLanguage][a]}</small></span></label>`).join('');if(skillsGrid)skillsGrid.innerHTML=SKILLS.map(([skill,ability])=>`<label class="check-card"><input type="checkbox" name="skill-${skill}" data-skill="${skill}" ${skills[skill]?'checked':''}><span>${t(`skill.${skill}`)} <small>${abilityShort[currentLanguage][ability]}</small></span></label>`).join('');}
+function renderAttacks(attacks=[]){if(!attacksList)return;attacksList.innerHTML='';const rows=attacks.length?attacks:[{}];rows.forEach(a=>addAttackRow(a));}
+function addAttackRow(attack={}){const row=document.createElement('div');row.className='attack-row';row.innerHTML=`<input class="attack-name" value="${escapeHtml(attack.name||'')}" placeholder="${currentLanguage==='fr'?'Épée longue':'Longsword'}"><input class="attack-bonus" value="${escapeHtml(attack.attack_bonus||'')}" placeholder="+5"><input class="attack-damage" value="${escapeHtml(attack.damage||'')}" placeholder="1d8+3"><input class="attack-notes" value="${escapeHtml(attack.notes||'')}" placeholder="${currentLanguage==='fr'?'Portée, propriétés…':'Range, properties…'}"><button class="icon-button remove-attack" type="button" title="${t('sheet.remove')}">×</button>`;attacksList.appendChild(row);row.querySelector('.remove-attack').addEventListener('click',()=>{row.remove();if(!attacksList.children.length)addAttackRow();});}
+async function openSheetModal(characterId){currentSheetCharacterId=characterId;sheetModal.classList.remove('hidden');sheetModal.setAttribute('aria-hidden','false');setMessage(sheetMessage,t('sheet.loading'));try{const{character,scores,skills,savingThrows,attacks}=await loadCharacterSheet(supabase,characterId,currentUser.id);document.querySelector('#sheet-name').value=character.name||'';document.querySelector('#sheet-level').value=character.level??1;document.querySelector('#sheet-xp').value=character.experience??0;document.querySelector('#sheet-hit-dice').value=character.hit_dice||'';document.querySelector('#sheet-hp-current').value=character.hp_current??0;document.querySelector('#sheet-hp-max').value=character.hp_max??0;document.querySelector('#sheet-hp-temp').value=character.hp_temporary??0;document.querySelector('#sheet-ac').value=character.armor_class??10;document.querySelector('#sheet-speed').value=character.speed??30;document.querySelector('#sheet-death-successes').value=character.death_save_successes??0;document.querySelector('#sheet-death-failures').value=character.death_save_failures??0;document.querySelector('#sheet-inspiration').checked=Boolean(character.inspiration_heroic);renderAbilityInputs(scores||{});renderProficiencyInputs(skills||{},savingThrows||{});renderAttacks(attacks||[]);setMessage(sheetMessage,'');}catch(error){setMessage(sheetMessage,`${t('sheet.failed')} ${error.message}`,'error');}}
+function closeSheetModal(){sheetModal.classList.add('hidden');sheetModal.setAttribute('aria-hidden','true');currentSheetCharacterId=null;}
+characterForm.addEventListener('submit',async e=>{e.preventDefault();if(!currentUser)return;const values=Object.fromEntries(new FormData(characterForm).entries());if(!values.name||!values.classKey||!values.speciesKey||!values.backgroundKey){setMessage(characterMessage,t('character.required'),'error');return;}const b=document.querySelector('#create-character-submit');b.disabled=true;try{await createCharacter(supabase,currentUser.id,values);closeCharacterModal();await refreshCharacters();}catch(error){setMessage(characterMessage,`${t('character.failed')} ${error.message}`,'error');}finally{b.disabled=false;}});
+sheetForm.addEventListener('submit',async e=>{e.preventDefault();if(!currentUser||!currentSheetCharacterId)return;const values=Object.fromEntries(new FormData(sheetForm).entries());values.inspirationHeroic=document.querySelector('#sheet-inspiration').checked;const scores=Object.fromEntries(ABILITIES.map(a=>[a,values[a]]));const skills=Object.fromEntries(SKILLS.map(([skill])=>[skill,document.querySelector(`[data-skill="${skill}"]`)?.checked||false]));const savingThrows=Object.fromEntries(ABILITIES.map(a=>[a,document.querySelector(`[data-save-ability="${a}"]`)?.checked||false]));const attacks=[...attacksList.querySelectorAll('.attack-row')].map(row=>({name:row.querySelector('.attack-name').value,attackBonus:row.querySelector('.attack-bonus').value,damage:row.querySelector('.attack-damage').value,notes:row.querySelector('.attack-notes').value}));const b=document.querySelector('#save-sheet-submit');b.disabled=true;try{await saveCharacterSheet(supabase,currentSheetCharacterId,currentUser.id,values,scores,skills,savingThrows,attacks);setMessage(sheetMessage,t('sheet.saved'),'success');await refreshCharacters();}catch(error){setMessage(sheetMessage,`${t('sheet.failed')} ${error.message}`,'error');}finally{b.disabled=false;}});
+authForm.addEventListener('submit',async e=>{e.preventDefault();const d=new FormData(authForm);try{setMessage(authMessage,'');await signIn(d.get('email'),d.get('password'));}catch(error){setMessage(authMessage,error.message,'error');}});
+signUpButton.addEventListener('click',async()=>{const d=new FormData(authForm),email=d.get('email'),password=d.get('password');if(!email||!password){setMessage(authMessage,currentLanguage==='fr'?'Saisissez un e-mail et un mot de passe.':'Enter an email and password.','error');return;}try{await signUp(email,password);}catch(error){setMessage(authMessage,error.message,'error');}});
+magicLinkButton.addEventListener('click',async()=>{const email=new FormData(authForm).get('email');if(!email){setMessage(authMessage,currentLanguage==='fr'?'Saisissez votre e-mail.':'Enter your email.','error');return;}try{await sendMagicLink(email);}catch(error){setMessage(authMessage,error.message,'error');}});
+signOutButton.addEventListener('click',async()=>{const{error}=await supabase.auth.signOut();if(error){setMessage(authMessage,error.message,'error');return;}showUnauthenticated();setMessage(authMessage,currentLanguage==='fr'?'Vous êtes déconnecté.':'You have been signed out.','success');});
+languageToggle.addEventListener('click',()=>{currentLanguage=currentLanguage==='en'?'fr':'en';localStorage.setItem('preferredLanguage',currentLanguage);applyLanguage();});
+newCharacterButton.addEventListener('click',openCharacterModal);document.querySelectorAll('[data-close-modal]').forEach(e=>e.addEventListener('click',closeCharacterModal));document.querySelectorAll('[data-close-sheet]').forEach(e=>e.addEventListener('click',closeSheetModal));document.querySelector('#add-attack-button').addEventListener('click',()=>addAttackRow());
+document.addEventListener('keydown',e=>{if(e.key==='Escape'){if(!characterModal.classList.contains('hidden'))closeCharacterModal();if(!sheetModal.classList.contains('hidden'))closeSheetModal();}});
+supabase.auth.onAuthStateChange((_event,session)=>{if(session?.user)showAuthenticated(session.user);else showUnauthenticated();});
+populateCharacterOptions();renderAbilityInputs();renderProficiencyInputs();applyLanguage();const{data:{session}}=await supabase.auth.getSession();if(session?.user)showAuthenticated(session.user);else showUnauthenticated();
