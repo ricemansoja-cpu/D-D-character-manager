@@ -4,15 +4,21 @@ const { createClient: createAttackClient } = window.supabase;
 const attackSupabase = createAttackClient(ATTACK_SUPABASE_URL, ATTACK_SUPABASE_KEY);
 let activeCharacterId = null;
 
-const SIMPLE_AND_MARTIAL = new Set(['barbarian','fighter','paladin','ranger','rogue']);
+const ALL_SIMPLE_AND_MARTIAL = new Set(['barbarian','fighter','paladin','ranger']);
 const SIMPLE_ONLY = new Set(['bard','cleric','druid','sorcerer','warlock','wizard']);
-const RANGED_WEAPONS = new Set(['Blowgun','Crossbow, Hand','Crossbow, Heavy','Crossbow, Light','Longbow','Shortbow','Sling','Dart']);
+const ROGUE_FINESSE_OR_LIGHT = true;
+const RANGED_WEAPONS = new Set(['Blowgun','Dart','Hand Crossbow','Heavy Crossbow','Light Crossbow','Longbow','Shortbow','Sling']);
 const modifier = score => Math.floor((Number(score ?? 10) - 10) / 2);
 const proficiencyBonus = level => 2 + Math.floor((Math.max(1, Number(level ?? 1)) - 1) / 4);
 
 function weaponProficient(classKey, item) {
-  if (SIMPLE_AND_MARTIAL.has(classKey)) return true;
-  if (SIMPLE_ONLY.has(classKey)) return String(item.properties?.weapon_category || '').toLowerCase() === 'simple';
+  const category = String(item.properties?.weapon_category || '').toLowerCase();
+  const properties = String(item.properties?.properties || '');
+  if (ALL_SIMPLE_AND_MARTIAL.has(classKey)) return category === 'simple' || category === 'martial';
+  if (SIMPLE_ONLY.has(classKey)) return category === 'simple';
+  if (classKey === 'rogue') {
+    return category === 'simple' || /\bFinesse\b/i.test(properties) || /\bLight\b/i.test(properties);
+  }
   return false;
 }
 
