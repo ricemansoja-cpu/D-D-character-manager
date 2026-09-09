@@ -57,7 +57,7 @@ async function saveFeatureChoice(characterId,featureKey,value){
   const first=existing?.[0];
   if(first) await progressionSupabase.from('character_feature_choices').delete().eq('id',first.id);
   await progressionSupabase.from('character_feature_choices').insert({character_id:characterId,feature_key:featureKey,choice_value:value,metadata:{source:'progression-ui'}});
-  renderProgression();
+  await renderProgression();
 }
 
 async function renderFeatureProgression(character,level,fr){
@@ -78,32 +78,42 @@ async function renderFeatureProgression(character,level,fr){
   box.querySelectorAll('select[data-feature-key]').forEach(select=>select.addEventListener('change',()=>saveFeatureChoice(character.id,select.dataset.featureKey,select.value)));
 }
 
+let progressionRenderInProgress=false;
+let progressionRenderQueued=false;
+
 async function renderProgression(){
+  if(progressionRenderInProgress){progressionRenderQueued=true;return;}
   const box=document.querySelector('#progression-stats');
   if(!box||document.querySelector('#sheet-modal')?.classList.contains('hidden'))return;
   const name=document.querySelector('#sheet-name')?.value?.trim();
   const {data:{user}}=await progressionSupabase.auth.getUser();
   if(!user||!name)return;
-  const {data:character}=await progressionSupabase.from('characters').select('id,class_key,level,experience,hp_max,hp_current,hit_dice').eq('user_id',user.id).eq('name',name).maybeSingle();
-  if(!character)return;
-  const level=Number(document.querySelector('#sheet-level')?.value||character.level||1);
-  const xp=Number(document.querySelector('#sheet-xp')?.value||character.experience||0);
-  const classKey=character.class_key;
-  const data=CLASS_DATA[classKey]||CLASS_DATA.fighter;
-  const next=nextLevelInfo(level,xp);
-  const con=Number(document.querySelector('#score-constitution')?.value||10);
-  const hp=fixedHpMax(classKey,level,con);
-  const lang=localStorage.getItem('preferredLanguage')||'en';
-  const fr=lang==='fr';
-  box.innerHTML=`<div class="progression-grid"><div><span>${fr?'Classe':'Class'}</span><strong>${CLASS_LABELS[lang][classKey]||classKey}</strong></div><div><span>${fr?'Dé de vie':'Hit die'}</span><strong>d${data.die}</strong></div><div><span>${fr?'Bonus de maîtrise':'Proficiency bonus'}</span><strong>+${2+Math.floor((level-1)/4)}</strong></div><div><span>${fr?'PV max calculés':'Calculated max HP'}</span><strong>${hp}</strong></div><div><span>${fr?'XP niveau actuel':'Current level XP'}</span><strong>${xpForLevel(level).toLocaleString()}</strong></div><div><span>${fr?'Prochain niveau':'Next level'}</span><strong>${next.next?`Lv ${next.next}`:'MAX'}</strong></div></div>${next.next?`<p class="progression-note">${next.remaining===0?(fr?'Niveau atteint.':'Level reached.'):(fr?`${next.remaining.toLocaleString()} XP avant le niveau ${next.next}.`:`${next.remaining.toLocaleString()} XP to level ${next.next}.`)}</p>`:''}`;
-  let featureBox=document.querySelector('#progression-features');
-  if(!featureBox){featureBox=document.createElement('div');featureBox.id='progression-features';box.insertAdjacentElement('afterend',featureBox);}
-  await renderFeatureProgression(character,level,fr);
-  const hitDice=document.querySelector('#sheet-hit-dice');
-  if(hitDice)hitDice.value=`${level}d${data.die}`;
+  progressionRenderInProgress=true;
+  try{
+    const {data:character}=await progressionSupabase.from('characters').select('id,class_key,level,experience,hp_max,hp_current,hit_dice').eq('user_id',user.id).eq('name',name).maybeSingle();
+    if(!character)return;
+    const level=Number(document.querySelector('#sheet-level')?.value||character.level||1);
+    const xp=Number(document.querySelector('#sheet-xp')?.value||character.experience||0);
+    const classKey=character.class_key;
+    const data=CLASS_DATA[classKey]||CLASS_DATA.fighter;
+    const next=nextLevelInfo(level,xp);
+    const con=Number(document.querySelector('#score-constitution')?.value||10);
+    const hp=fixedHpMax(classKey,level,con);
+    const lang=localStorage.getItem('preferredLanguage')||'en';
+    const fr=lang==='fr';
+    box.innerHTML=`<div class="progression-grid"><div><span>${fr?'Classe':'Class'}</span><strong>${CLASS_LABELS[lang][classKey]||classKey}</strong></div><div><span>${fr?'Dé de vie':'Hit die'}</span><strong>d${data.die}</strong></div><div><span>${fr?'Bonus de maîtrise':'Proficiency bonus'}</span><strong>+${2+Math.floor((level-1)/4)}</strong></div><div><span>${fr?'PV max calculés':'Calculated max HP'}</span><strong>${hp}</strong></div><div><span>${fr?'XP niveau actuel':'Current level XP'}</span><strong>${xpForLevel(level).toLocaleString()}</strong></div><div><span>${fr?'Prochain niveau':'Next level'}</span><strong>${next.next?`Lv ${next.next}`:'MAX'}</strong></div></div>${next.next?`<p class="progression-note">${next.remaining===0?(fr?'Niveau atteint.':'Level reached.'):(fr?`${next.remaining.toLocaleString()} XP avant le niveau ${next.next}.`:`${next.remaining.toLocaleString()} XP to level ${next.next}.`)}</p>`:''}`;
+    let featureBox=document.querySelector('#progression-features');
+    if(!featureBox){featureBox=document.createElement('div');featureBox.id='progression-features';box.insertAdjacentElement('afterend',featureBox);}
+    await renderFeatureProgression(character,level,fr);
+    const hitDice=document.querySelector('#sheet-hit-dice');
+    if(hitDice)hitDice.value=`${level}d${data.die}`;
+  } finally {
+    progressionRenderInProgress=false;
+    if(progressionRenderQueued){progressionRenderQueued=false;setTimeout(renderProgression,0);}
+  }
 }
 
 document.addEventListener('input',event=>{if(event.target.matches('#sheet-level,#sheet-xp,#score-constitution,#sheet-name'))renderProgression();});
 document.addEventListener('change',event=>{if(event.target.matches('#sheet-level,#sheet-xp,#score-constitution'))renderProgression();});
-const observer=new MutationObserver(()=>{if(!document.querySelector('#sheet-modal')?.classList.contains('hidden'))setTimeout(renderProgression,50);});
+const observer=new MutationObserver(()=>{if(!progressionRenderInProgress && !progressionRenderQueued && !document.querySelector('#sheet-modal')?.classList.contains('hidden')){progressionRenderQueued=true;setTimeout(()=>{progressionRenderQueued=false;renderProgression();},50);}});
 observer.observe(document.body,{childList:true,subtree:true});
