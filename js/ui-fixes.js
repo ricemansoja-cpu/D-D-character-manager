@@ -16,4 +16,12 @@
   const observer=new MutationObserver(()=>{translateStatic();translateCatalogOptions();translateSpellRows();});
   observer.observe(document.body,{childList:true,subtree:true});
   translateStatic();translateCatalogOptions();translateSpellRows();
+
+  const PORTRAIT_ENDPOINT='https://wmeuebjbvoqudhpwtxyn.supabase.co/functions/v1/generate-character-portrait';
+  const supa=()=>window.supabaseClient||window.supabase||null;
+  async function generatePortrait(characterId){const c=supa();if(!c?.auth||!characterId)return null;const {data:{session}}=await c.auth.getSession();if(!session)return null;const r=await fetch(PORTRAIT_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${session.access_token}`},body:JSON.stringify({character_id:characterId})});const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||'Portrait generation failed');return d;}
+  function portraitStyle(){if(document.getElementById('character-portrait-style'))return;const s=document.createElement('style');s.id='character-portrait-style';s.textContent='.character-portrait-thumb{width:64px;height:64px;border-radius:10px;object-fit:cover}.character-portrait-large{width:260px;height:340px;border-radius:14px;object-fit:cover}.portrait-status{font-size:.8rem;opacity:.7}';document.head.appendChild(s);}
+  async function attachPortrait(characterId,container,large=false){if(!container||!characterId)return;portraitStyle();const c=supa();if(!c?.from)return;const {data}=await c.from('characters').select('portrait_url').eq('id',characterId).maybeSingle();if(data?.portrait_url){container.innerHTML=`<img class="${large?'character-portrait-large':'character-portrait-thumb'}" src="${data.portrait_url}" alt="Character portrait">`;}}
+  window.generateCharacterPortrait=generatePortrait;window.attachCharacterPortrait=attachPortrait;
+  window.queueCharacterPortraitGeneration=async function(characterId){try{const result=await generatePortrait(characterId);if(result?.image_url){document.querySelectorAll(`[data-character-portrait="${characterId}"]`).forEach(e=>{e.src=result.image_url;e.style.display='block';});}return result;}catch(e){console.warn('[portrait]',e);return null;}};
 })();
