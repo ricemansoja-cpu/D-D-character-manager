@@ -1,33 +1,21 @@
 <!doctype html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>D&D Character Manager — Admin</title>
-  <link rel="stylesheet" href="css/main.css" />
+  <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><title>D&D Character Manager — Admin</title>
+  <link rel="stylesheet" href="css/main.css">
 </head>
-<body>
-  <div class="app-shell">
-    <header class="topbar">
-      <a class="brand" href="index.html"><span class="brand-mark">⚔️</span><span>D&D Character Manager</span></a>
-      <div class="topbar-actions"><button id="sign-out" class="button button-secondary" type="button">Sign out</button></div>
-    </header>
-    <main class="main-content">
-      <section id="loading-view" class="auth-view"><div class="auth-card"><div class="hero-icon">🔐</div><h1>Administration</h1><p class="muted">Checking administrator access…</p></div></section>
-      <section id="denied-view" class="auth-view hidden"><div class="auth-card"><div class="hero-icon">⛔</div><h1>Access denied</h1><p class="muted">This area is restricted to administrators.</p><a class="button button-primary" href="index.html">Back to app</a></div></section>
-      <section id="admin-view" class="hidden">
-        <div class="page-heading"><div><p class="eyebrow">Administration</p><h1>Application overview</h1><p id="admin-email" class="muted"></p></div><a class="button button-secondary" href="index.html">Open app</a></div>
-        <div id="stats" class="characters-grid"></div>
-        <section class="modal-card" style="margin-top:1.5rem">
-          <div class="section-heading"><h2>Players and roles</h2></div>
-          <input id="user-search" type="search" placeholder="Search by username or display name…" style="width:100%;margin-bottom:1rem" />
-          <div class="table-wrap"><div id="users-list"></div></div>
-          <p id="admin-message" class="status-message" role="status" aria-live="polite"></p>
-        </section>
-      </section>
-    </main>
-  </div>
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <script src="js/admin.js"></script>
-</body>
-</html>
+<body><div class="app-shell">
+<header class="topbar"><a class="brand" href="index.html"><span class="brand-mark">⚔️</span><span>D&D Character Manager</span></a><div class="topbar-actions"><button id="sign-out" class="button button-secondary" type="button">Sign out</button></div></header>
+<main class="main-content">
+<section id="loading-view" class="auth-view"><div class="auth-card"><div class="hero-icon">🔐</div><h1>Administration</h1><p class="muted">Checking administrator access…</p></div></section>
+<section id="denied-view" class="auth-view hidden"><div class="auth-card"><div class="hero-icon">⛔</div><h1>Access denied</h1><p class="muted">This area is restricted to administrators.</p><a class="button button-primary" href="index.html">Back to app</a></div></section>
+<section id="admin-view" class="hidden">
+<div class="page-heading"><div><p class="eyebrow">Administration</p><h1>Application management</h1><p id="admin-email" class="muted"></p></div><a class="button button-secondary" href="index.html">Open app</a></div>
+<div id="stats" class="characters-grid"></div>
+<section class="modal-card" style="margin-top:1.5rem"><div class="section-heading"><h2>👥 Users & roles</h2></div><input id="user-search" type="search" placeholder="Search by username or display name…" style="width:100%;margin-bottom:1rem"><div class="table-wrap"><div id="users-list"></div></div></section>
+<section class="modal-card" style="margin-top:1.5rem"><div class="section-heading"><h2>🧙 Characters</h2></div><input id="character-search" type="search" placeholder="Search characters or players…" style="width:100%;margin-bottom:1rem"><div class="table-wrap"><div id="characters-list"></div></div></section>
+<section class="modal-card" style="margin-top:1.5rem"><div class="section-heading"><h2>🗺️ Campaigns</h2></div><input id="campaign-search" type="search" placeholder="Search campaigns or owners…" style="width:100%;margin-bottom:1rem"><div class="table-wrap"><div id="campaigns-list"></div></div></section>
+<p id="admin-message" class="status-message" role="status" aria-live="polite"></p>
+</section></main></div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="js/admin.js"></script>
+</body></html>
