@@ -40,10 +40,14 @@
   supabase.auth.getSession().then(({ data }) => render(data?.session?.user || null));
   supabase.auth.onAuthStateChange((_event, session) => render(session?.user || null));
 
-  if (!document.querySelector('script[data-mj-player-picker]')) {
+  const loadScript = (src, marker) => {
+    if (document.querySelector(`script[data-${marker}]`)) return;
     const script = document.createElement('script');
-    script.src = 'js/mj-player-picker.js';
-    script.dataset.mjPlayerPicker = 'true';
+    script.src = src;
+    script.dataset[marker.replace(/-([a-z])/g, (_, c) => c.toUpperCase())] = 'true';
     document.body.appendChild(script);
-  }
+  };
+
+  loadScript('js/mj-player-picker.js', 'mj-player-picker');
+  loadScript('js/mj-invitations.js', 'mj-invitations');
 })();
