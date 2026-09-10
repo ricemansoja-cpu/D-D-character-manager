@@ -1,0 +1,74 @@
+(() => {
+  const URL = 'https://wmeuebjbvoqudhpwtxyn.supabase.co';
+  const KEY = 'sb_publishable_jYrKnt_Unuv5M6XT1t0AaQ_quQTOpCD';
+  const db = window.supabase.createClient(URL, KEY);
+  const ABILITIES = ['strength','dexterity','constitution','intelligence','wisdom','charisma'];
+  const labels = {en:{strength:'Strength',dexterity:'Dexterity',constitution:'Constitution',intelligence:'Intelligence',wisdom:'Wisdom',charisma:'Charisma'},fr:{strength:'Force',dexterity:'Dextérité',constitution:'Constitution',intelligence:'Intelligence',wisdom:'Sagesse',charisma:'Charisme'}};
+  const esc = v => String(v ?? '').replace(/[&<>\"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[c]));
+  const keyFor = (feature, level) => `${feature}_level_${level}`;
+  async function context(){
+    const {data:{user}} = await db.auth.getUser();
+    const name = document.querySelector('#sheet-name')?.value?.trim();
+    if(!user || !name) return null;
+    const {data:character,error} = await db.from('characters').select('id,class_key,level').eq('user_id',user.id).eq('name',name).maybeSingle();
+    if(error || !character) return null;
+    const {data:scores} = await db.from('character_ability_scores').select('*').eq('character_id',character.id).single();
+    return {user,character,scores:scores||{}};
+  }
+  async function choice(characterId, featureKey, level){
+    const {data} = await db.from('character_feature_choices').select('id,choice_value,metadata').eq('character_id',characterId).eq('feature_key',keyFor(featureKey,level)).limit(1);
+    return data?.[0] || null;
+  }
+  function currentDeltas(metadata){ return metadata?.asi_deltas && typeof metadata.asi_deltas === 'object' ? metadata.asi_deltas : {}; }
+  async function applyASI(characterId, featureKey, level, deltas){
+    const existing = await choice(characterId,featureKey,level);
+    const old = currentDeltas(existing?.metadata);
+    const {data:scores,error} = await db.from('character_ability_scores').select('*').eq('character_id',characterId).single();
+    if(error) throw error;
+    const next = {...scores};
+    for(const a of ABILITIES) next[a] = Math.max(1, Math.min(20, Number(next[a] ?? 10) - Number(old[a] || 0)));
+    for(const a of ABILITIES) next[a] += Number(deltas[a] || 0);
+    if(ABILITIES.some(a => next[a] > 20)) throw new Error('Ability scores cannot exceed 20 with Ability Score Improvement.');
+    const payload = {character_id:characterId}; ABILITIES.forEach(a => payload[a]=next[a]);
+    const {error:updateError} = await db.from('character_ability_scores').update(payload).eq('character_id',characterId); if(updateError) throw updateError;
+    const storageKey = keyFor(featureKey,level);
+    const metadata = {source:'asi.js', selection:'asi', asi_deltas:deltas};
+    if(existing) await db.from('character_feature_choices').update({choice_value:JSON.stringify({type:'ability_score_improvement'}),metadata}).eq('id',existing.id);
+    else await db.from('character_feature_choices').insert({character_id:characterId,feature_key:storageKey,choice_value:JSON.stringify({type:'ability_score_improvement'}),metadata});
+    await db.from('character_feats').upsert({character_id:characterId,feat_key:'ability_score_improvement',source_feature_key:featureKey,source_level:level,metadata}, {onConflict:'character_id,source_feature_key,source_level'});
+    ABILITIES.forEach(a => { const input=document.querySelector(`#score-${a}`); if(input) input.value=next[a]; });
+    window.dispatchEvent(new CustomEvent('character-asi-applied',{detail:{characterId,level,deltas}}));
+    return next;
+  }
+  async function clearASI(characterId, featureKey, level){
+    const existing=await choice(characterId,featureKey,level); const old=currentDeltas(existing?.metadata); if(!Object.keys(old).length) return;
+    const {data:scores,error}=await db.from('character_ability_scores').select('*').eq('character_id',characterId).single(); if(error) throw error;
+    const next={...scores}; ABILITIES.forEach(a=>next[a]=Math.max(1,Number(next[a]??10)-Number(old[a]||0));
+    const payload={character_id:characterId}; ABILITIES.forEach(a=>payload[a]=next[a]);
+    const {error:updateError}=await db.from('character_ability_scores').update(payload).eq('character_id',characterId); if(updateError) throw updateError;
+    if(existing) await db.from('character_feature_choices').update({metadata:{source:'asi.js',selection:'asi_removed',asi_deltas:{}}}).eq('id',existing.id);
+    await db.from('character_feats').delete().eq('character_id',characterId).eq('source_feature_key',featureKey).eq('source_level',level);
+    ABILITIES.forEach(a=>{const input=document.querySelector(`#score-${a}`);if(input)input.value=next[a];});
+  }
+  async function attach(select){
+    if(select.dataset.asiEnhanced) return; select.dataset.asiEnhanced='1';
+    const level=Number(select.dataset.level); const featureKey=select.dataset.featureKey; const host=select.parentElement;
+    const c=await context(); if(!c) return;
+    const saved=await choice(c.character.id,featureKey,level); const metadata=currentDeltas(saved?.metadata);
+    const lang=localStorage.getItem('preferredLanguage')||'en'; const fr=lang==='fr';
+    const wrap=document.createElement('div'); wrap.className='asi-controls';
+    wrap.innerHTML=`<select class="asi-mode"><option value="two">${fr?'+2 à une caractéristique':'+2 to one ability'}</option><option value="split">${fr?'+1 à deux caractéristiques':'+1 to two abilities'}</option></select><div class="asi-abilities"></div><button type="button" class="button button-primary asi-apply">${fr?'Appliquer':'Apply'}</button><small class="asi-status"></small>`;
+    host.appendChild(wrap);
+    const mode=wrap.querySelector('.asi-mode'), abilities=wrap.querySelector('.asi-abilities'), apply=wrap.querySelector('.asi-apply'), status=wrap.querySelector('.asi-status');
+    const oldKeys=Object.keys(metadata);
+    if(oldKeys.length===1 && Object.values(metadata)[0]===2) mode.value='two'; else if(oldKeys.length===2 && oldKeys.every(k=>metadata[k]===1)) mode.value='split';
+    function render(){ const opts=ABILITIES.map(a=>`<option value="${a}">${esc(labels[lang][a])}</option>`).join(''); abilities.innerHTML=mode.value==='two'?`<select class="asi-a">${opts}</select>`:`<select class="asi-a">${opts}</select><select class="asi-b">${opts}</select>`; if(oldKeys[0]) abilities.querySelector('.asi-a').value=oldKeys[0]; if(mode.value==='split'&&oldKeys[1]) abilities.querySelector('.asi-b').value=oldKeys[1]; }
+    render(); mode.addEventListener('change',render);
+    apply.addEventListener('click',async()=>{try{const a=abilities.querySelector('.asi-a').value;const b=abilities.querySelector('.asi-b')?.value;const deltas={};if(mode.value==='two')deltas[a]=2;else{if(a===b){status.textContent=fr?'Choisissez deux caractéristiques différentes.':'Choose two different abilities.';return;}deltas[a]=1;deltas[b]=1;}const next=await applyASI(c.character.id,featureKey,level,deltas);status.textContent=fr?'ASI appliquée.':'ASI applied.';document.querySelector('#score-constitution')?.dispatchEvent(new Event('change',{bubbles:true}));}catch(e){status.textContent=e.message;status.className='asi-status error';}});
+    select.addEventListener('change',async()=>{if(select.value!=='ability_score_improvement'){try{await clearASI(c.character.id,featureKey,level);}catch(e){console.error(e);}}});
+  }
+  function scan(){document.querySelectorAll('#progression-features select[data-choice-role="type"]').forEach(s=>{if(s.value==='ability_score_improvement')attach(s);});}
+  const observer=new MutationObserver(scan); observer.observe(document.body,{childList:true,subtree:true});
+  document.addEventListener('change',e=>{if(e.target.matches('#sheet-level,#sheet-name'))setTimeout(scan,100);});
+  const style=document.createElement('style'); style.textContent='.asi-controls{margin-top:7px;padding:9px;background:var(--surface-2);border:1px solid var(--border);border-radius:10px;display:grid;gap:7px}.asi-controls select{margin:0}.asi-abilities{display:grid;grid-template-columns:1fr 1fr;gap:7px}.asi-apply{padding:8px 10px}.asi-status{color:var(--muted);min-height:16px}.asi-status.error{color:var(--danger)}'; document.head.appendChild(style);
+})();
