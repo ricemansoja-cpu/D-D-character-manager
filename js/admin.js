@@ -1,94 +1,20 @@
-const SUPABASE_URL = 'https://wmeuebjbvoqudhpwtxyn.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_jYrKnt_Unuv5M6XT1t0AaQ_quQTOpCD';
-const { createClient } = window.supabase;
-const supabase = createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
-
-const loadingView = document.querySelector('#loading-view');
-const deniedView = document.querySelector('#denied-view');
-const adminView = document.querySelector('#admin-view');
-const adminEmail = document.querySelector('#admin-email');
-const stats = document.querySelector('#stats');
-const usersList = document.querySelector('#users-list');
-const searchInput = document.querySelector('#user-search');
-const message = document.querySelector('#admin-message');
-let profiles = [];
-
-function escapeHtml(value) {
-  return String(value ?? '').replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
-}
-function setMessage(text, type = '') {
-  message.textContent = text;
-  message.className = `status-message ${type}`;
-}
-function show(view) {
-  loadingView.classList.toggle('hidden', view !== 'loading');
-  deniedView.classList.toggle('hidden', view !== 'denied');
-  adminView.classList.toggle('hidden', view !== 'admin');
-}
-
-async function checkAdmin() {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) { show('denied'); return; }
-  const { data: profile, error } = await supabase.from('profiles').select('id,username,display_name,role').eq('id', user.id).single();
-  if (error || !profile || profile.role !== 'admin') { show('denied'); return; }
-  adminEmail.textContent = user.email || '';
-  show('admin');
-  await loadDashboard();
-}
-
-async function loadDashboard() {
-  const [{ count: userCount }, { count: characterCount }, { count: campaignCount }] = await Promise.all([
-    supabase.from('profiles').select('*', { count: 'exact', head: true }),
-    supabase.from('characters').select('*', { count: 'exact', head: true }),
-    supabase.from('campaigns').select('*', { count: 'exact', head: true })
-  ]);
-  stats.innerHTML = [
-    ['👥', 'Users', userCount ?? 0],
-    ['🧙', 'Characters', characterCount ?? 0],
-    ['🗺️', 'Campaigns', campaignCount ?? 0]
-  ].map(([icon, label, value]) => `<article class="character-card"><div class="character-card-icon">${icon}</div><h2>${label}</h2><p class="character-meta" style="font-size:2rem;font-weight:700">${value}</p></article>`).join('');
-  await loadProfiles();
-}
-
-async function loadProfiles() {
-  const { data, error } = await supabase.from('profiles').select('id,username,display_name,role,created_at').order('created_at', { ascending: true });
-  if (error) { setMessage(error.message, 'error'); return; }
-  profiles = data || [];
-  renderProfiles();
-}
-
-function renderProfiles() {
-  const q = searchInput.value.trim().toLowerCase();
-  const filtered = profiles.filter(p => `${p.username || ''} ${p.display_name || ''}`.toLowerCase().includes(q));
-  if (!filtered.length) { usersList.innerHTML = '<p class="muted">No matching users.</p>'; return; }
-  usersList.innerHTML = `<div style="display:grid;gap:.75rem">${filtered.map(p => `
-    <div style="display:grid;grid-template-columns:1fr auto;gap:1rem;align-items:center;padding:.8rem 0;border-bottom:1px solid rgba(127,127,127,.18)">
-      <div><strong>${escapeHtml(p.username)}</strong><div class="muted">${escapeHtml(p.display_name || '')}</div></div>
-      <select class="admin-role" data-id="${p.id}" aria-label="Role for ${escapeHtml(p.username)}">
-        ${['player','dm','admin'].map(role => `<option value="${role}" ${p.role === role ? 'selected' : ''}>${role}</option>`).join('')}
-      </select>
-    </div>`).join('')}</div>`;
-  usersList.querySelectorAll('.admin-role').forEach(select => select.addEventListener('change', () => updateRole(select.dataset.id, select.value)));
-}
-
-async function updateRole(id, role) {
-  if (role === 'player' && id === (await supabase.auth.getUser()).data.user?.id) {
-    setMessage('You cannot remove your own administrator role from this page.', 'error');
-    renderProfiles();
-    return;
-  }
-  const target = profiles.find(p => p.id === id);
-  if (target?.role === 'admin' && role !== 'admin') {
-    const adminCount = profiles.filter(p => p.role === 'admin').length;
-    if (adminCount <= 1) { setMessage('At least one administrator must remain.', 'error'); renderProfiles(); return; }
-  }
-  const { error } = await supabase.from('profiles').update({ role }).eq('id', id);
-  if (error) { setMessage(error.message, 'error'); return; }
-  setMessage('Role updated.', 'success');
-  await loadProfiles();
-}
-
-searchInput.addEventListener('input', renderProfiles);
-document.querySelector('#sign-out').addEventListener('click', async () => { await supabase.auth.signOut(); window.location.href = 'index.html'; });
-supabase.auth.onAuthStateChange(() => { checkAdmin(); });
-checkAdmin();
+const SUPABASE_URL='https://wmeuebjbvoqudhpwtxyn.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_jYrKnt_Unuv5M6XT1t0AaQ_quQTOpCD';
+const {createClient}=window.supabase; const supabase=createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
+const $=s=>document.querySelector(s); const esc=v=>String(v??'').replace(/[&<>'"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c]));
+const loading=$('#loading-view'), denied=$('#denied-view'), admin=$('#admin-view'), msg=$('#admin-message');
+let profiles=[],characters=[],campaigns=[],currentUser=null;
+function show(v){loading.classList.toggle('hidden',v!=='loading');denied.classList.toggle('hidden',v!=='denied');admin.classList.toggle('hidden',v!=='admin');}
+function message(t,type=''){msg.textContent=t;msg.className=`status-message ${type}`;}
+async function checkAdmin(){const {data:{user}}=await supabase.auth.getUser();currentUser=user;if(!user){show('denied');return;}const {data:p,error}=await supabase.from('profiles').select('id,username,display_name,role').eq('id',user.id).single();if(error||p?.role!=='admin'){show('denied');return;}$('#admin-email').textContent=user.email||'';show('admin');await loadAll();}
+async function loadAll(){const [{count:u},{count:c},{count:ca}]=await Promise.all([supabase.from('profiles').select('*',{count:'exact',head:true}),supabase.from('characters').select('*',{count:'exact',head:true}),supabase.from('campaigns').select('*',{count:'exact',head:true})]);$('#stats').innerHTML=[['👥','Users',u??0],['🧙','Characters',c??0],['🗺️','Campaigns',ca??0]].map(x=>`<article class="character-card"><div class="character-card-icon">${x[0]}</div><h2>${x[1]}</h2><p style="font-size:2rem;font-weight:700">${x[2]}</p></article>`).join('');await Promise.all([loadProfiles(),loadCharacters(),loadCampaigns()]);}
+async function loadProfiles(){const {data,error}=await supabase.from('profiles').select('id,username,display_name,role,created_at').order('created_at',{ascending:true});if(error)return message(error.message,'error');profiles=data||[];renderProfiles();}
+function renderProfiles(){const q=$('#user-search').value.trim().toLowerCase();const rows=profiles.filter(p=>`${p.username} ${p.display_name||''}`.toLowerCase().includes(q));$('#users-list').innerHTML=rows.length?rows.map(p=>`<div style="display:grid;grid-template-columns:1fr auto auto;gap:.75rem;align-items:center;padding:.8rem 0;border-bottom:1px solid rgba(127,127,127,.18)"><div><strong>${esc(p.username)}</strong><div class="muted">${esc(p.display_name||'')}</div></div><select class="admin-role" data-id="${p.id}">${['player','dm','admin'].map(r=>`<option value="${r}" ${p.role===r?'selected':''}>${r}</option>`).join('')}</select><button class="button button-secondary delete-user" data-id="${p.id}" type="button">Delete data</button></div>`).join(''):'<p class="muted">No matching users.</p>';document.querySelectorAll('.admin-role').forEach(e=>e.onchange=()=>updateRole(e.dataset.id,e.value));document.querySelectorAll('.delete-user').forEach(e=>e.onclick=()=>deleteUser(e.dataset.id));}
+async function updateRole(id,role){if(id===currentUser.id&&role!=='admin'){message('You cannot remove your own administrator role.','error');return renderProfiles();}const admins=profiles.filter(p=>p.role==='admin');if(role!=='admin'&&profiles.find(p=>p.id===id)?.role==='admin'&&admins.length<=1){message('At least one administrator must remain.','error');return renderProfiles();}const {error}=await supabase.from('profiles').update({role}).eq('id',id);if(error)return message(error.message,'error');message('Role updated.','success');await loadProfiles();}
+async function deleteUser(id){if(id===currentUser.id)return message('Your administrator account cannot be deleted from this page.','error');const p=profiles.find(x=>x.id===id);if(!p)return;if(!confirm(`Delete all application data for @${p.username}? This cannot be undone.`))return;const {error}=await supabase.rpc('admin_delete_user_data',{p_user_id:id});if(error)return message(error.message,'error');message(`Data for @${p.username} deleted.`,'success');await loadAll();}
+async function loadCharacters(){const {data,error}=await supabase.rpc('admin_list_characters');if(error)return message(error.message,'error');characters=data||[];renderCharacters();}
+function renderCharacters(){const q=$('#character-search').value.trim().toLowerCase();const rows=characters.filter(c=>`${c.character_name} ${c.username||''} ${c.player_name||''} ${c.class_key||''}`.toLowerCase().includes(q));$('#characters-list').innerHTML=rows.length?`<div style="overflow:auto"><table style="width:100%"><thead><tr><th>Character</th><th>Player</th><th>Level</th><th>Class</th><th>Updated</th></tr></thead><tbody>${rows.map(c=>`<tr><td>${esc(c.character_name)}</td><td>${esc(c.username||c.player_name||'—')}</td><td>${c.level}</td><td>${esc(c.class_key)}${c.subclass_key?` · ${esc(c.subclass_key)}`:''}</td><td>${new Date(c.updated_at).toLocaleDateString()}</td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">No characters found.</p>';}
+async function loadCampaigns(){const {data,error}=await supabase.rpc('admin_list_campaigns');if(error)return message(error.message,'error');campaigns=data||[];renderCampaigns();}
+function renderCampaigns(){const q=$('#campaign-search').value.trim().toLowerCase();const rows=campaigns.filter(c=>`${c.name} ${c.owner_username||''} ${c.description||''}`.toLowerCase().includes(q));$('#campaigns-list').innerHTML=rows.length?`<div style="overflow:auto"><table style="width:100%"><thead><tr><th>Campaign</th><th>Owner</th><th>Invite code</th><th>Created</th><th></th></tr></thead><tbody>${rows.map(c=>`<tr><td><strong>${esc(c.name)}</strong><div class="muted">${esc(c.description||'')}</div></td><td>${esc(c.owner_username||'—')}</td><td><code>${esc(c.invite_code||'—')}</code></td><td>${new Date(c.created_at).toLocaleDateString()}</td><td><button class="button button-secondary delete-campaign" data-id="${c.id}" type="button">Delete</button></td></tr>`).join('')}</tbody></table></div>`:'<p class="muted">No campaigns found.</p>';document.querySelectorAll('.delete-campaign').forEach(e=>e.onclick=()=>deleteCampaign(e.dataset.id));}
+async function deleteCampaign(id){const c=campaigns.find(x=>x.id===id);if(!c||!confirm(`Delete campaign “${c.name}” and its invitations/memberships?`))return;const {error}=await supabase.rpc('admin_delete_campaign',{p_campaign_id:id});if(error)return message(error.message,'error');message('Campaign deleted.','success');await loadAll();}
+$('#user-search').addEventListener('input',renderProfiles);$('#character-search').addEventListener('input',renderCharacters);$('#campaign-search').addEventListener('input',renderCampaigns);$('#sign-out').onclick=async()=>{await supabase.auth.signOut();location.href='index.html';};supabase.auth.onAuthStateChange(()=>checkAdmin());checkAdmin();
