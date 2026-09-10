@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#111827" />
+  <title>D&D Character Manager — Create account</title>
+  <link rel="stylesheet" href="css/main.css" />
+</head>
+<body>
+  <div id="app" class="app-shell">
+    <header class="topbar">
+      <a class="brand" href="index.html" aria-label="D&D Character Manager"><span class="brand-mark">⚔️</span><span>D&D Character Manager</span></a>
+      <button id="language-toggle" class="icon-button" type="button" aria-label="Switch language">FR</button>
+    </header>
+    <main class="main-content">
+      <section class="auth-view">
+        <div class="auth-card">
+          <div class="hero-icon">🧙</div>
+          <p class="eyebrow" data-i18n="eyebrow">D&D 2024</p>
+          <h1 data-i18n="title">Create your account</h1>
+          <p class="muted" data-i18n="subtitle">Create an account to save your characters and access them from anywhere.</p>
+          <form id="signup-form" class="auth-form">
+            <label for="email" data-i18n="email">Email</label>
+            <input id="email" type="email" autocomplete="email" required placeholder="you@example.com" />
+            <label for="password" data-i18n="password">Password</label>
+            <input id="password" type="password" autocomplete="new-password" minlength="6" required placeholder="••••••••" />
+            <label for="password-confirm" data-i18n="confirmPassword">Confirm password</label>
+            <input id="password-confirm" type="password" autocomplete="new-password" minlength="6" required placeholder="••••••••" />
+            <button id="create-account" class="button button-primary" type="submit" data-i18n="create">Create account</button>
+          </form>
+          <p id="signup-message" class="status-message" role="status" aria-live="polite"></p>
+          <a class="text-button" href="index.html" data-i18n="back">Already have an account? Sign in</a>
+        </div>
+      </section>
+    </main>
+    <footer class="footer"><span>D&D Character Manager</span><span>·</span><span data-i18n="footer">D&D 2024 companion</span></footer>
+  </div>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script type="module">
+    const SUPABASE_URL='https://wmeuebjbvoqudhpwtxyn.supabase.co';
+    const SUPABASE_KEY='sb_publishable_jYrKnt_Unuv5M6XT1t0AaQ_quQTOpCD';
+    const {createClient}=window.supabase;
+    const supabase=createClient(SUPABASE_URL,SUPABASE_KEY);
+    const translations={
+      en:{eyebrow:'D&D 2024',title:'Create your account',subtitle:'Create an account to save your characters and access them from anywhere.',email:'Email',password:'Password',confirmPassword:'Confirm password',create:'Create account',back:'Already have an account? Sign in',footer:'D&D 2024 companion',mismatch:'Passwords do not match.',created:'Account created. Check your email if confirmation is required.',error:'Unable to create the account.'},
+      fr:{eyebrow:'D&D 2024',title:'Créer votre compte',subtitle:'Créez un compte pour sauvegarder vos personnages et y accéder depuis n’importe où.',email:'E-mail',password:'Mot de passe',confirmPassword:'Confirmer le mot de passe',create:'Créer le compte',back:'Vous avez déjà un compte ? Se connecter',footer:'Compagnon D&D 2024',mismatch:'Les mots de passe ne correspondent pas.',created:'Compte créé. Vérifiez votre e-mail si une confirmation est demandée.',error:'Impossible de créer le compte.'}
+    };
+    let lang=localStorage.getItem('preferredLanguage')||'en';
+    const msg=document.querySelector('#signup-message');
+    function setLang(){document.documentElement.lang=lang;document.querySelector('#language-toggle').textContent=lang==='en'?'FR':'EN';document.querySelectorAll('[data-i18n]').forEach(el=>{el.textContent=translations[lang][el.dataset.i18n]||el.textContent;});}
+    document.querySelector('#language-toggle').addEventListener('click',()=>{lang=lang==='en'?'fr':'en';localStorage.setItem('preferredLanguage',lang);setLang();});
+    document.querySelector('#signup-form').addEventListener('submit',async e=>{e.preventDefault();const email=document.querySelector('#email').value.trim();const password=document.querySelector('#password').value;const confirm=document.querySelector('#password-confirm').value;const button=document.querySelector('#create-account');msg.textContent='';msg.className='status-message';if(password!==confirm){msg.textContent=translations[lang].mismatch;msg.classList.add('error');return;}button.disabled=true;try{const {error}=await supabase.auth.signUp({email,password,options:{emailRedirectTo:window.location.origin+window.location.pathname.replace('signup.html','index.html')}});if(error)throw error;msg.textContent=translations[lang].created;msg.classList.add('success');document.querySelector('#signup-form').reset();}catch(error){msg.textContent=`${translations[lang].error} ${error.message||''}`;msg.classList.add('error');}finally{button.disabled=false;}});
+    setLang();
+  </script>
+</body>
+</html>
