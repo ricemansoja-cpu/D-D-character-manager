@@ -21,16 +21,9 @@
       usernameElement.classList.add('hidden');
       return;
     }
-
     usernameElement.textContent = '';
     usernameElement.classList.add('hidden');
-
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('username')
-      .eq('id', user.id)
-      .maybeSingle();
-
+    const { data, error } = await supabase.from('profiles').select('username').eq('id', user.id).maybeSingle();
     if (!error && data?.username) {
       usernameElement.textContent = `@${data.username}`;
       usernameElement.classList.remove('hidden');
@@ -50,4 +43,5 @@
 
   loadScript('js/mj-player-picker.js', 'mj-player-picker');
   loadScript('js/mj-invitations.js', 'mj-invitations');
+  loadScript('js/campaign-player-view.js', 'campaign-player-view');
 })();
