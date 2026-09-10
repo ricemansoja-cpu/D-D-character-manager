@@ -28,4 +28,26 @@
   document.addEventListener('submit',event=>{if(event.target.id==='sheet-form'&&activeCharacterId){setTimeout(()=>window.queueCharacterPortraitGeneration(activeCharacterId),900);}else if(event.target.id==='character-form'){setTimeout(async()=>{const c=supa();if(!c)return;const {data}=await c.from('characters').select('id').order('updated_at',{ascending:false}).limit(1).maybeSingle();if(data?.id){activeCharacterId=data.id;window.queueCharacterPortraitGeneration(data.id);}},1200);}},true);
   window.generateCharacterPortrait=generatePortrait;window.attachCharacterPortrait=async(id)=>showSheetPortrait(id);
   window.queueCharacterPortraitGeneration=async function(characterId){try{const result=await generatePortrait(characterId);if(result?.image_url){await decorateCharacterCards();await showSheetPortrait(characterId);}return result;}catch(e){console.warn('[portrait]',e);return null;}};
+
+  async function setupAdminEntry(){
+    const dashboard=document.querySelector('#dashboard-view');
+    const heading=dashboard?.querySelector('.page-heading');
+    if(!dashboard||!heading||document.querySelector('#admin-entry'))return;
+    const client=supa();
+    if(!client?.auth)return;
+    const {data:{user}}=await client.auth.getUser();
+    if(!user)return;
+    const {data:profile}=await client.from('profiles').select('role').eq('id',user.id).maybeSingle();
+    if(profile?.role!=='admin')return;
+    const link=document.createElement('a');
+    link.id='admin-entry';
+    link.className='button button-secondary';
+    link.href='admin.html';
+    link.textContent=lang()==='fr'?'⚙️ Administration':'⚙️ Administration';
+    link.style.marginLeft='0.5rem';
+    heading.appendChild(link);
+  }
+  const adminObserver=new MutationObserver(()=>{setupAdminEntry();});
+  adminObserver.observe(document.body,{childList:true,subtree:true});
+  setTimeout(setupAdminEntry,250);
 })();
