@@ -39,4 +39,11 @@
 
   supabase.auth.getSession().then(({ data }) => render(data?.session?.user || null));
   supabase.auth.onAuthStateChange((_event, session) => render(session?.user || null));
+
+  if (!document.querySelector('script[data-mj-player-picker]')) {
+    const script = document.createElement('script');
+    script.src = 'js/mj-player-picker.js';
+    script.dataset.mjPlayerPicker = 'true';
+    document.body.appendChild(script);
+  }
 })();
